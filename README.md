@@ -5,26 +5,15 @@ How to get it running:
 <br /><br />
 
 Python:
-<br />
--> Create a venv file nearby that you can use as an interpreter. 
-<br />
--> Use "pip install -r requirements.txt" to install the dependencies to your venv; 
-the requirements.txt file is included in the repository. 
-<br />
--> Run the project from main.py. 
+* Create a venv file nearby that you can use as an interpreter. 
+* Use "pip install -r requirements.txt" to install the dependencies to your venv; the requirements.txt file is included in the repository. 
+* Run the project from main.py. 
 <br /><br />
 
 C++:
-<br />
--> The C++ code is accessed from the file "
-<br />
--> There should already be a "cpp_code\main.so" file.
-<br />
--> If you modify the C++ code, 
-use "g++ -O2 -fPIC -shared -o main.so main.cpp" from 
-command prompt (from the "cpp_code" folder) to compile it again.
-<br />
-	-> I used g++ 64 bit.
-<br />
-	-> You can use it with another optimization setting if needed.
-<br /><br />
+* The C++ code is accessed from the file "cppfunctions.py"
+* There should already be a "cpp_code\main.so" file.
+* If you modify the C++ code, use "g++ -O2 -fPIC -shared -o main.so main.cpp" from command prompt (from the "cpp_code" folder) to compile it again.
+	* I used g++ 64 bit.
+	* You can use it with another optimization setting if needed.
+
