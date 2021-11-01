@@ -1,8 +1,8 @@
 # very_simple_organism
 My capstone project, I am trying to emulate how a organism with a simple CNS might learn and navigate. 
-
-How to get it running:
 <br /><br />
+How to get it running:
+<br />
 
 Python:
 * Create a venv file nearby that you can use as an interpreter. 
