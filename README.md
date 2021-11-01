@@ -23,6 +23,8 @@ C++:
 -> If you modify the C++ code, 
 use "g++ -O2 -fPIC -shared -o main.so main.cpp" from 
 command prompt (from the "cpp_code" folder) to compile it again.
+<br />
 	-> I used g++ 64 bit.
+<br />
 	-> You can use it with another optimization setting if needed.
 <br /><br />
