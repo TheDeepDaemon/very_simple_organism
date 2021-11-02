@@ -5,13 +5,14 @@ How to get it running:
 <br />
 
 Python:
-* Create a venv file nearby that you can use as an interpreter. 
+* Create a Python virtual environment nearby (or somewhere) that you can select as an interpreter. 
 * Use "pip install -r requirements.txt" to install the dependencies to your venv; the requirements.txt file is included in the repository. 
 * Run the project from main.py. 
 <br /><br />
 
 C++:
-* The C++ code is accessed from the file "cppfunctions.py"
+* The C++ code is accessed by Python from the file "cppfunctions.py"
+	* This file acts as an interface between the two parts of the project.
 * There should already be a "cpp_code\main.so" file.
 * If you modify the C++ code, use "g++ -O2 -fPIC -shared -o main.so main.cpp" from command prompt (from the "cpp_code" folder) to compile it again.
 	* I used g++ 64 bit.
