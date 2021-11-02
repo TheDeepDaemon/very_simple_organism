@@ -1,6 +1,7 @@
 #include"cpp_headers.h"
 #include"markov_clustering.h"
 #include"grouping.h"
+#include"data_augmentation.h"
 
 
 
@@ -138,6 +139,17 @@ extern "C" {
     
     float calcEntropy(float* arrPtr, int64_t size) {
         return calcEntropy(Eigen::Map<evec>(arrPtr, size));
+    }
+    
+    void augmentData(float* dataPtr, 
+	    const int64_t n, const int64_t rows, const int64_t cols, 
+	    float* augmentedDataPtr) {
+        if (rows == cols) {
+            augmentData<true>(dataPtr, n, rows, cols, augmentedDataPtr);
+        }
+        else {
+            augmentData<false>(dataPtr, n, rows, cols, augmentedDataPtr);
+        }
     }
     
 }

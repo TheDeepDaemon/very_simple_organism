@@ -4,6 +4,7 @@ import cppfunctions
 import numpy as np
 
 
+# remove groups that have values further from 1 or 0
 def remove_high_entropy(groups):
     entropy = cppfunctions.calc_groups_entropy(groups)
     ave_entropy = np.average(entropy)
@@ -14,6 +15,7 @@ def remove_high_entropy(groups):
     return np.array(groups_to_keep, dtype=np.float32)
 
 
+# average the contents of a list of groups
 def average_of_groups(data, index_lists):
     ave_groups = []
     for index_list in index_lists:
@@ -24,6 +26,7 @@ def average_of_groups(data, index_lists):
     return ave_groups
 
 
+# use clustering techinques to find groups of similar patterns
 def find_groups(data, split_size, markov_iterations, clustering_power, clustering_inflation):
     num_splits = int(len(data) / split_size)
     
@@ -67,10 +70,11 @@ def find_absolute_groups(data, stop_at, split_size, markov_iterations, clusterin
 
 
 
-''' example:
-data = cppfunctions.generate_random_data(350000, 16)
-groups = find_absolute_groups(data, 90, 120, 100, 2, 100)
-print("groups: ", len(groups))
-for g in groups:
-    print(np.round(g, decimals=3))
-'''
+# example:
+if __name__ == "__main__":
+    data = cppfunctions.generate_random_data(350000, 16)
+    groups = find_absolute_groups(data, 90, 120, 100, 2, 100)
+    print("groups: ", len(groups))
+    for g in groups:
+        print(np.round(g, decimals=3))
+

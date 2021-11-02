@@ -4,6 +4,17 @@ import ctypes
 from ctypes import CDLL
 import numpy as np
 
+# used for debugging
+def generate_random_data(rows, cols):
+    offset = np.reshape(np.random.standard_normal(rows * cols), newshape=(rows, cols)) * 0.1
+    data = np.zeros(shape=(rows, cols), dtype=np.float32)
+    for i in range(len(data)):
+        r = np.random.randint(0, cols)
+        data[i][r] = 1.0
+        data[i][r-1] = 1.0
+    data += offset
+    return data
+
 cpp_code_dir = 'cpp_code'
 fname = 'main.so'
 path = cpp_code_dir + '\\' + fname
@@ -147,14 +158,26 @@ def calc_groups_entropy(arrs):
     return entropy
 
 
-# used for debugging
-def generate_random_data(rows, cols):
-    offset = np.reshape(np.random.standard_normal(rows * cols), newshape=(rows, cols)) * 0.1
-    data = np.zeros(shape=(rows, cols), dtype=np.float32)
-    for i in range(len(data)):
-        r = np.random.randint(0, cols)
-        data[i][r] = 1.0
-        data[i][r-1] = 1.0
-    data += offset
-    return data
-
+def augment_data(data, rows=None, cols=None):
+    if rows is None:
+        rows = data.shape[1]
+    if cols is None:
+        cols = data.shape[2]
+    
+    if data.size == data.shape[0] * rows * cols:
+        
+        n_augmented = None
+        if rows == cols:
+            n_augmented = data.shape[0] * 6
+        else:
+            n_augmented = data.shape[0] * 4
+        
+        augmented = np.zeros(shape=(n_augmented, rows, cols), dtype=np.float32)
+        
+        cpp_functions.augmentData(
+            get_nparr_ptr(data), ctypes.c_int64(data.shape[0]), 
+            ctypes.c_int64(rows), ctypes.c_int64(cols), 
+            get_nparr_ptr(augmented))
+        return augmented
+    else:
+        print("Input to augment_data() is wrong shape.")

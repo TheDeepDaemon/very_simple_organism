@@ -1,5 +1,6 @@
 from operator import le
 from random import shuffle
+from PIL.Image import new
 import numpy as np
 import tensorflow as tf
 import keras
@@ -124,7 +125,7 @@ class AgentBrain:
             
             # when you reach capacity
             if hit_end:
-                # get the data, augmented
+                # get the data
                 data = cppfunctions.images_to_matrix_4d(self.memory.memory, 4, 4)
                 
                 new_data = []
@@ -132,6 +133,11 @@ class AgentBrain:
                     if np.linalg.norm(data[i]) >= 0.1:
                         new_data.append(data[i])
                 data = np.array(new_data, dtype=np.float32)
+                
+                # augment the data
+                data = cppfunctions.augment_data(data, 4, 4)
+                data = np.reshape(
+                    data, newshape=(data.shape[0], int(data.size / data.shape[0])))
                 
                 indices = np.argsort(np.linalg.norm(data, axis=1))
                 data = data[indices]

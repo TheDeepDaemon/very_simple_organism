@@ -267,13 +267,14 @@ class Game:
 
 
 
-pygame.init()
-display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-clock = pygame.time.Clock()
-space = pymunk.Space()
+if __name__ == "__main__":
+    pygame.init()
+    display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    clock = pygame.time.Clock()
+    space = pymunk.Space()
 
-system = Game(display, space, clock)
+    system = Game(display, space, clock)
 
-system.run_game()
-pygame.quit()
+    system.run_game()
+    pygame.quit()
 
