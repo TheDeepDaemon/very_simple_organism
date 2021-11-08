@@ -40,7 +40,8 @@ def get_nparr_ptr(np_arr):
 # and a series of ints that store the shape
 # outputs as a tuple
 def get_nparr_args(np_arr):
-    return (get_nparr_ptr(np_arr=np_arr), *np_arr.shape)
+    shape = tuple([ctypes.c_int64(x) for x in np_arr.shape])
+    return (get_nparr_ptr(np_arr=np_arr), *shape)
 
 
 # take patches of an image (as a np array) 
@@ -181,3 +182,15 @@ def augment_data(data, rows=None, cols=None):
         return augmented
     else:
         print("Input to augment_data() is wrong shape.")
+
+
+def create_weights(data):
+    weights = np.copy(data)
+    vecSize = ctypes.c_int64(int(weights.size / weights.shape[0]))
+    cpp_functions.getWeightValues(
+        get_nparr_ptr(weights), 
+        ctypes.c_int64(weights.shape[0]), 
+        vecSize)
+    return weights
+
+

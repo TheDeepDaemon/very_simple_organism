@@ -7,13 +7,13 @@
 // get the differences between different rows,
 // treating rows as vectors
 dmat getRowDifferences(const dmat& mat) {
-	int64_t rows = mat.rows();
+	int64 rows = mat.rows();
 	dmat diffs(rows, rows);
 	
 	diffs.setZero();
 	
-	for (int64_t i = 0; i < rows; i++) {
-		for (int64_t j = 0; j < rows; j++) {
+	for (int64 i = 0; i < rows; i++) {
+		for (int64 j = 0; j < rows; j++) {
 			if (i != j) {
 				// squared norm gives better results than regular norm
 				diffs(i, j) = (mat.row(i) - mat.row(j)).squaredNorm();
@@ -38,7 +38,7 @@ dmat getDpRelations(dmat mat) {
 // get the sum of each row
 evec sumRows(dmat m) {
 	evec v(m.rows());
-	for (int64_t i = 0; i < m.rows(); i++) {
+	for (int64 i = 0; i < m.rows(); i++) {
 		v[i] = m.row(i).sum();
 	}
 	return v;
@@ -62,12 +62,12 @@ evec getRelations(const dmat& data) {
 // get the index of any row that is a member of the cluster.
 // it assumes that most of the rows in the matrix show a similar pattern.
 // similarity is detirmined using dot product and difference.
-vector<int64_t> getIndicesInGroup(const dmat& data) {
+vector<int64> getIndicesInGroup(const dmat& data) {
 	if (data.rows() > 2) {
 		evec relations = getRelations(data);
 		
 		// get the indices
-		vector<int64_t> rankings = rankByRule(relations);
+		vector<int64> rankings = rankByRule(relations);
 		evec ranked(rankings.size());
 
 		// set values in order from greatest to least
@@ -76,33 +76,33 @@ vector<int64_t> getIndicesInGroup(const dmat& data) {
 		}
 
 		// find the greatest dropoff, looking for lowest second delta
-		int64_t inflectionPoint = indexOfLowest(derivatives(derivatives(ranked)));
+		int64 inflectionPoint = indexOfLowest(derivatives(derivatives(ranked)));
 		
-		int64_t endIndex = inflectionPoint + 2;
+		int64 endIndex = inflectionPoint + 2;
 		
 		// get the outlier index vector
-		vector<int64_t> inGroup(rankings.begin(), rankings.begin() + endIndex);
+		vector<int64> inGroup(rankings.begin(), rankings.begin() + endIndex);
 		return inGroup;
 	}
 	else {
-		return permutationVector<int64_t>(data.rows());
+		return permutationVector<int64>(data.rows());
 	}
 }
 
 
 // get the row that serves the best example of the pattern that
 // the cluster shows, and compare all other rows to it
-vector<int64_t> compareToHighest(const dmat& data, const evec& relations) {
+vector<int64> compareToHighest(const dmat& data, const evec& relations) {
 
-	int64_t highest = indexOfHighest(relations);
+	int64 highest = indexOfHighest(relations);
 
 	evec dpSimilarity(relations.size());
-	for (int64_t i = 0; i < relations.size(); i++) {
+	for (int64 i = 0; i < relations.size(); i++) {
 		dpSimilarity[i] = data.row(i).normalized().dot(data.row(highest).normalized());
 	}
 
 	evec distSimilarity(relations.size());
-	for (int64_t i = 0; i < relations.size(); i++) {
+	for (int64 i = 0; i < relations.size(); i++) {
 		distSimilarity[i] = (data.row(i) - data.row(highest)).norm();
 	}
 
@@ -110,11 +110,11 @@ vector<int64_t> compareToHighest(const dmat& data, const evec& relations) {
 
 	similarity[highest] = 0;
 	
-	vector<int64_t> rankings = rankByRule(similarity);
+	vector<int64> rankings = rankByRule(similarity);
 
 	size_t numToKeep = 3;
 
-	vector<int64_t> topChoices;
+	vector<int64> topChoices;
 	topChoices.reserve(numToKeep);
 	topChoices.push_back(highest);
 	for (size_t i = 0; i < numToKeep-1; i++) {

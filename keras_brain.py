@@ -9,6 +9,7 @@ from tensorflow.python.keras.backend import dtype
 from memory_buffer import MemoryBuffer
 import cppfunctions
 import grouping_data
+from set_weights import set_layer_weights
 
 
 INPUT_SHAPE = (16, 16, 1)
@@ -25,11 +26,11 @@ NUM_MEMORIES = 1000
 # of the highest derivative of motion
 # the network should be able to detect
 ST_MEM_SIZE = 4
-
-
 NUM_EARLY_MEMORIES = 256
-
 PREDICTION_FRAMES = 4
+
+INITIAL_LAYER_NAME = 'layer1'
+
 
 
 def create_rand_arr(shape):
@@ -61,7 +62,9 @@ class AgentBrain:
     
     def construct_internal_model(self):
         il = layers.Input(shape=INPUT_SHAPE)
-        layer = layers.Conv2D(16, (4, 4), activation='relu')(il)
+        layer = layers.Conv2D(
+            16, (4, 4), activation='relu', 
+            name=INITIAL_LAYER_NAME)(il)
         layer = layers.Flatten()(layer)
         layer = layers.Dense(16, activation='relu')(layer)
         layer = layers.Dense(13 * 13 * 16)(layer)
@@ -145,6 +148,10 @@ class AgentBrain:
                 
                 # use it for training
                 groups = grouping_data.find_absolute_groups(data, 300, 120, 100, 2, 100)
+                weights = cppfunctions.create_weights(groups)
+                
+                #set_layer_weights(self.internal_model, weights, INITIAL_LAYER_NAME)
+                
                 return groups
     
     

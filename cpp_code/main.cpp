@@ -24,7 +24,7 @@ extern "C" {
         
         size_t jn = cols - wCols + 1;
         size_t kn = rows - wRows + 1;
-        int64_t rowSize = wCols * wRows;
+        int64 rowSize = wCols * wRows;
         
         size_t numI = jn * kn;
 
@@ -59,14 +59,14 @@ extern "C" {
     
     // find groups, output a indices that represent members of each group
     void findGroups(
-        float* dataPtr, int64_t rows, int64_t cols, 
+        float* dataPtr, int64 rows, int64 cols, 
         int* outputGroups, unsigned int maxGroups, int iterations, double power, double inflation) {
         
         Eigen::Map<dmat> data(dataPtr, rows, cols);
-        vector<set<int64_t>> groups = groupData(data, iterations, power, inflation);
+        vector<set<int64>> groups = groupData(data, iterations, power, inflation);
         
         size_t numGroups = groups.size();
-        set<int64_t>::iterator it;
+        set<int64>::iterator it;
         size_t j;
         size_t stopI = min((size_t)maxGroups, groups.size());
         for (size_t i = 0; i < stopI; i++) {
@@ -78,25 +78,25 @@ extern "C" {
     }
     
     // remove rows that do not fit in the cluster
-    void removeOutliers(float* dataPtr, int64_t rows, int64_t cols, bool* keep) {
+    void removeOutliers(float* dataPtr, int64 rows, int64 cols, bool* keep) {
         Eigen::Map<dmat> data(dataPtr, rows, cols);
         
-        vector<int64_t> group = getIndicesInGroup(data);
+        vector<int64> group = getIndicesInGroup(data);
         
-        for (const int64_t& memberInd: group) {
+        for (const int64& memberInd: group) {
             keep[memberInd] = true;
         }
         
     }
     
     // revise this function
-    void joinSimilar(float* dataPtr, int64_t rows, int64_t cols, bool* keep, float threshold) {
+    void joinSimilar(float* dataPtr, int64 rows, int64 cols, bool* keep, float threshold) {
         
         Eigen::Map<dmat> data(dataPtr, rows, cols);
         memset(keep, true, rows);
         
-        for (int64_t i = 0; i < rows; i++) {
-            for (int64_t j = 0; j < rows; j++) {
+        for (int64 i = 0; i < rows; i++) {
+            for (int64 j = 0; j < rows; j++) {
                 if (i != j && keep[i]) {
                     float diff = (data.row(i) - data.row(j)).norm();
                     if (diff < threshold) {
@@ -109,19 +109,19 @@ extern "C" {
     }
     
     // scale all values so that the largest value is 1.0
-    void scaleUp(float* dataPtr, int64_t size) {
+    void scaleUp(float* dataPtr, int64 size) {
         Eigen::Map<evec> data(dataPtr, size);
         float maxVal = data.maxCoeff();
         data *= (1.0f / maxVal);
     }
     
     // get an average of a series of numpy arrays
-    void averageArr(float* dataPtr, int64_t n, int64_t arrSize, float* outputAvePtr) {
+    void averageArr(float* dataPtr, int64 n, int64 arrSize, float* outputAvePtr) {
         Eigen::Map<dmat> data(dataPtr, n, arrSize);
         Eigen::Map<evec> ave(outputAvePtr, arrSize);
         ave.setZero();
         
-        for (int64_t i = 0; i < data.rows(); i++) {
+        for (int64 i = 0; i < data.rows(); i++) {
             ave += data.row(i);
         }
         
@@ -130,19 +130,21 @@ extern "C" {
     
     // normalized dot product: how much do these vectors 
     // point in the same direction?
-    float normalizedDotProd(float* arrPtr1, float* arrPtr2, int64_t size) {
+    float normalizedDotProd(float* arrPtr1, float* arrPtr2, int64 size) {
         Eigen::Map<evec> arr1(arrPtr1, size);
         Eigen::Map<evec> arr2(arrPtr2, size);
         float ndp = arr1.normalized().dot(arr2.normalized());
         return ndp;
     }
     
-    float calcEntropy(float* arrPtr, int64_t size) {
+    // calculate how close the values are to 0.5
+    float calcEntropy(float* arrPtr, int64 size) {
         return calcEntropy(Eigen::Map<evec>(arrPtr, size));
     }
     
+    // augment the data so that there is new data that is rotated and flipped
     void augmentData(float* dataPtr, 
-	    const int64_t n, const int64_t rows, const int64_t cols, 
+	    const int64 n, const int64 rows, const int64 cols, 
 	    float* augmentedDataPtr) {
         if (rows == cols) {
             augmentData<true>(dataPtr, n, rows, cols, augmentedDataPtr);
@@ -151,6 +153,17 @@ extern "C" {
             augmentData<false>(dataPtr, n, rows, cols, augmentedDataPtr);
         }
     }
+    
+    
+    // this function is here to convert the patterns collected into 
+    // the values that the weights should be
+    void getWeightValues(float* dataPtr, int64 n, int64 vecSize) {
+        for (int64 i = 0; i < n; i++) {
+            float* dataLoc = dataPtr + (i * vecSize);
+            toWeightValues(dataLoc, vecSize);
+        }
+    }
+    
     
 }
 

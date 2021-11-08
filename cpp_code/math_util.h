@@ -52,9 +52,9 @@ emat pow(const emat& mat, double p) {
 	emat eigvals = eigsolver.pseudoEigenvalueMatrix();
 	emat eigmat = eigsolver.pseudoEigenvectors();
 
-	int64_t size = min(eigvals.rows(), eigvals.cols());
+	int64 size = min(eigvals.rows(), eigvals.cols());
 
-	for (int64_t i = 0; i < size; i++) {
+	for (int64 i = 0; i < size; i++) {
 		eigvals(i, i) = pow(eigvals(i, i), p);
 	}
 
@@ -65,7 +65,7 @@ emat pow(const emat& mat, double p) {
 // turn the matrix into a markov matrix, 
 // so the columns represent probabilities
 void markovify(emat& mat) {
-	for (int64_t i = 0; i < mat.cols(); i++) {
+	for (int64 i = 0; i < mat.cols(); i++) {
 		mat.col(i) /= (double)mat.col(i).sum();
 	}
 }
@@ -73,8 +73,8 @@ void markovify(emat& mat) {
 
 // raise the matrix coefficients to a power
 void cwisePow(emat& mat, double p) {
-	for (int64_t i = 0; i < mat.rows(); i++) {
-		for (int64_t j = 0; j < mat.cols(); j++) {
+	for (int64 i = 0; i < mat.rows(); i++) {
+		for (int64 j = 0; j < mat.cols(); j++) {
 			mat(i, j) = pow(mat(i, j), p);
 		}
 	}
@@ -84,7 +84,7 @@ void cwisePow(emat& mat, double p) {
 // go through the rows of the matrix 
 // and normalize each of them
 void normalizeRows(emat& mat) {
-	for (int64_t i = 0; i < mat.rows(); i++) {
+	for (int64 i = 0; i < mat.rows(); i++) {
 		mat.row(i).normalize();
 	}
 }
@@ -93,7 +93,7 @@ void normalizeRows(emat& mat) {
 // go through the rows of the matrix 
 // and normalize each of them
 void normalizeRows(dmat& mat) {
-	for (int64_t i = 0; i < mat.rows(); i++) {
+	for (int64 i = 0; i < mat.rows(); i++) {
 		mat.row(i).normalize();
 	}
 }
@@ -112,15 +112,15 @@ vector<T> permutationVector(size_t size) {
 
 // return a permutation vector that 
 // goes from highest to lowest or vice versa
-vector<int64_t> rankByRule(const evec& vec, bool descending=true) {
-	vector<int64_t> perm = permutationVector<int64_t>(vec.size());
+vector<int64> rankByRule(const evec& vec, bool descending=true) {
+	vector<int64> perm = permutationVector<int64>(vec.size());
 
 	if (descending) {
-		sort(perm.begin(), perm.end(), [&vec](int64_t lhs, int64_t rhs)
+		sort(perm.begin(), perm.end(), [&vec](int64 lhs, int64 rhs)
 			{ return vec[lhs] > vec[rhs]; });
 	}
 	else {
-		sort(perm.begin(), perm.end(), [&vec](int64_t lhs, int64_t rhs)
+		sort(perm.begin(), perm.end(), [&vec](int64 lhs, int64 rhs)
 			{ return vec[lhs] < vec[rhs]; });
 	}
 
@@ -129,11 +129,11 @@ vector<int64_t> rankByRule(const evec& vec, bool descending=true) {
 
 
 // get the index of the highest vector entry
-int64_t indexOfHighest(const evec& vec) {
-	int64_t highestInd = 0;
+int64 indexOfHighest(const evec& vec) {
+	int64 highestInd = 0;
 	float highestVal = vec[0];
 
-	for (int64_t i = 1; i < vec.size(); i++) {
+	for (int64 i = 1; i < vec.size(); i++) {
 		if (vec[i] > highestVal) {
 			highestInd = i;
 			highestVal = vec[i];
@@ -145,11 +145,11 @@ int64_t indexOfHighest(const evec& vec) {
 
 
 // get the index of the lowest vector entry
-int64_t indexOfLowest(const evec& vec) {
-	int64_t lowestInd = 0;
+int64 indexOfLowest(const evec& vec) {
+	int64 lowestInd = 0;
 	float lowestVal = vec[0];
 
-	for (int64_t i = 1; i < vec.size(); i++) {
+	for (int64 i = 1; i < vec.size(); i++) {
 		if (vec[i] < lowestVal) {
 			lowestInd = i;
 			lowestVal = vec[i];
@@ -181,14 +181,26 @@ void applyAdjustedSigmoid(float* arr, size_t size) {
 // values closer to 0.5 are highest, and
 // values closer to 1 or 0 are lowest
 float calcEntropy(const evec& x) {
-	int64_t size = x.size();
+	int64 size = x.size();
 	float entropy = 0.0f;
-	for (int64_t i = 0; i < size; i++) {
+	for (int64 i = 0; i < size; i++) {
 		float p = x[i];
 		float q = 1.0 - p;
 		entropy += (-p * log2(p)) - (q * log2(q));
 	}
 	return entropy / (float)size;
 }
+
+
+// get the values that the neural network
+// weights should be set to based on the data
+void toWeightValues(float* weightsPtr, int64 size) {
+	Eigen::Map<evec> weights(weightsPtr, size);
+	float average = weights.sum() / (float)size;
+	weights.array() -= average;
+	weights *= (2.0f / weights.cwiseAbs().sum());
+}
+
+
 
 #endif

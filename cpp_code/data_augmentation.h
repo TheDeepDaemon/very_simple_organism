@@ -4,63 +4,69 @@
 
 
 
+// rotate the matrix 90 degrees
 void rotate90CounterClockwise(const dmat& data, Eigen::Map<dmat>& rotated) {
-	for (int64_t i = 0; i < data.rows(); i++) {
-		for (int64_t j = 0; j < data.cols(); j++) {
+	for (int64 i = 0; i < data.rows(); i++) {
+		for (int64 j = 0; j < data.cols(); j++) {
 			rotated(rotated.rows() - j - 1, i) = data(i, j);
 		}
 	}
 }
 
 
+// rotate the matrix -90 degrees
 void rotate90Clockwise(const dmat& data, Eigen::Map<dmat>& rotated) {
-	for (int64_t i = 0; i < data.rows(); i++) {
-		for (int64_t j = 0; j < data.cols(); j++) {
+	for (int64 i = 0; i < data.rows(); i++) {
+		for (int64 j = 0; j < data.cols(); j++) {
 			rotated(j, rotated.cols() - i - 1) = data(i, j);
 		}
 	}
 }
 
 
+// rotate the matrix 180 degrees
 void rotate180(const dmat& data, Eigen::Map<dmat>& rotated) {
-	for (int64_t i = 0; i < data.rows(); i++) {
-		for (int64_t j = 0; j < data.cols(); j++) {
+	for (int64 i = 0; i < data.rows(); i++) {
+		for (int64 j = 0; j < data.cols(); j++) {
 			rotated(rotated.rows() - i - 1, rotated.cols() - j - 1) = data(i, j);
 		}
 	}
 }
 
 
+// horizontally flip the matrix
 void fliph(const dmat& data, Eigen::Map<dmat>& flipped) {
-	for (int64_t i = 0; i < data.rows(); i++) {
-		for (int64_t j = 0; j < data.cols(); j++) {
+	for (int64 i = 0; i < data.rows(); i++) {
+		for (int64 j = 0; j < data.cols(); j++) {
 			flipped(i, data.cols() - j - 1) = data(i, j);
 		}
 	}
 }
 
 
+// vertically flip the matrix
 void flipv(const dmat& data, Eigen::Map<dmat>& flipped) {
-	for (int64_t i = 0; i < data.rows(); i++) {
-		for (int64_t j = 0; j < data.cols(); j++) {
+	for (int64 i = 0; i < data.rows(); i++) {
+		for (int64 j = 0; j < data.cols(); j++) {
 			flipped(data.rows() - i - 1, j) = data(i, j);
 		}
 	}
 }
 
+
 template<bool square>
 void augmentData(float* dataPtr, 
-	const int64_t n, const int64_t rows, const int64_t cols, 
+	const int64 n, const int64 rows, const int64 cols, 
 	float* augmentedDataPtr) {
 
 	// if the 90 degree rotations are taken out,
 	// the new size isn't going to be as big
-	const int64_t augmentedSize = square ? 6 : 4;
+	const int64 augmentedSize = square ? 6 : 4;
 
 	// store the full size of each section
-	int64_t matSize = rows * cols;
+	int64 matSize = rows * cols;
 
-	for (int64_t i = 0; i < n; i++) {
+	for (int64 i = 0; i < n; i++) {
 		// get original data
 		Eigen::Map<dmat> mat(dataPtr + (i * matSize), rows, cols);
 

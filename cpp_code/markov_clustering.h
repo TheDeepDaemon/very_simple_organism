@@ -22,11 +22,11 @@ emat dataRelationships(emat dataMatrix) {
 // checks to see if the columns have 
 // converged to 0 or 1 values (or close)
 bool allColsConverged(const emat& mat) {
-	for (int64_t i = 0; i < mat.cols(); i++) {
+	for (int64 i = 0; i < mat.cols(); i++) {
 
 		// count non-zero values
 		int count = 0;
-		for (int64_t j = 0; j < mat.rows(); j++) {
+		for (int64 j = 0; j < mat.rows(); j++) {
 			double d = mat(j, i);
 			if (d != 0.0) {
 				count++;
@@ -35,7 +35,7 @@ bool allColsConverged(const emat& mat) {
 
 		double desired = 1.0 / (double)count;
 
-		for (int64_t j = 0; j < mat.rows(); j++) {
+		for (int64 j = 0; j < mat.rows(); j++) {
 			double mc = mat(j, i);
 			if (mc != 0.0 && abs(mc - desired) > 0.00001) {
 				return false;
@@ -83,26 +83,26 @@ emat markovClustering(emat mat, uint64_t maxIterations, double power, double inf
 
 
 // find groupings in the data, which is given as a matrix
-vector<set<int64_t>> groupData(const emat& data, uint64_t iterations, double power, double inflation) {
+vector<set<int64>> groupData(const emat& data, uint64_t iterations, double power, double inflation) {
 	
 	emat clusteredData = markovClustering(dataRelationships(data), iterations, power, inflation);
 
-	for (int64_t i = 0; i < clusteredData.rows(); i++) {
-		for (int64_t j = 0; j < clusteredData.cols(); j++) {
+	for (int64 i = 0; i < clusteredData.rows(); i++) {
+		for (int64 j = 0; j < clusteredData.cols(); j++) {
 			if (abs(clusteredData(i, j)) < 0.0001) {
 				clusteredData(i, j) = 0.0;
 			}
 		}
 	}
 
-	vector<set<int64_t>> groups(clusteredData.cols());
+	vector<set<int64>> groups(clusteredData.cols());
 
-	for (int64_t i = 0; i < clusteredData.cols(); i++) {
+	for (int64 i = 0; i < clusteredData.cols(); i++) {
 		double maxColVal = 0.0;
 
 		// find max value that isn't on the diagonal,
 		// meaning it is not a self-relation
-		for (int64_t j = 0; j < clusteredData.rows(); j++) {
+		for (int64 j = 0; j < clusteredData.rows(); j++) {
 			if (i != j) {
 				if (clusteredData(j, i) > maxColVal) {
 					maxColVal = clusteredData(j, i);
@@ -113,7 +113,7 @@ vector<set<int64_t>> groupData(const emat& data, uint64_t iterations, double pow
 		groups[i].insert(i);
 		if (maxColVal > 0.0) {
 			// find highest value
-			for (int64_t j = 0; j < clusteredData.rows(); j++) {
+			for (int64 j = 0; j < clusteredData.rows(); j++) {
 				if (i != j) {
 					if (clusteredData(j, i) >= maxColVal) {
 						groups[i].insert(j);
@@ -133,7 +133,7 @@ vector<set<int64_t>> groupData(const emat& data, uint64_t iterations, double pow
 			for (size_t j = 0; j < groups.size(); j++) {
 				if (i != j && (merged[i] == false && merged[j] == false)) {
 
-					set<int64_t> intersection = intersectSets(groups[i], groups[j]);
+					set<int64> intersection = intersectSets(groups[i], groups[j]);
 
 					if (!intersection.empty()) {
 
@@ -147,7 +147,7 @@ vector<set<int64_t>> groupData(const emat& data, uint64_t iterations, double pow
 		}
 	}
 
-	vector<set<int64_t>> finalGroups;
+	vector<set<int64>> finalGroups;
 
 	for (size_t i = 0; i < groups.size(); i++) {
 		if (!merged[i]) {
