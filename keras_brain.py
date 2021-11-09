@@ -58,25 +58,29 @@ class AgentBrain:
         self.memory = MemoryBuffer(NUM_MEMORIES, ST_MEM_SIZE, INPUT_SHAPE)
         self.eval_counter = 0
         self.last_frames = [np.zeros(shape=INPUT_SHAPE) for _ in range(PREDICTION_FRAMES)]
+        self.weights_initted = False
+        self.internal_model = None
     
     
-    def construct_internal_model(self):
+    def construct_internal_model(self, initial_filters):
         il = layers.Input(shape=INPUT_SHAPE)
         layer = layers.Conv2D(
-            16, (4, 4), activation='relu', 
+            initial_filters, (4, 4), activation='relu', 
             name=INITIAL_LAYER_NAME)(il)
         layer = layers.Flatten()(layer)
         layer = layers.Dense(16, activation='relu')(layer)
-        layer = layers.Dense(13 * 13 * 16)(layer)
-        layer = layers.Reshape(target_shape=(13, 13, 16))(layer)
-        layer = layers.Conv2DTranspose(3, (4, 4), activation='sigmoid')(layer)
+        layer = layers.Dense(13 * 13 * initial_filters)(layer)
+        layer = layers.Reshape(target_shape=(13, 13, initial_filters))(layer)
+        layer = layers.Conv2DTranspose(
+            3, (4, 4), activation='sigmoid')(layer)
         
         self.internal_model = keras.Model(inputs=il, outputs=layer)
         
-        loss = keras.losses.MeanSquaredError(reduction=tf.compat.v1.losses.Reduction.NONE)
+        loss = keras.losses.MeanSquaredError(
+            reduction=tf.compat.v1.losses.Reduction.NONE)
         
-        self.internal_model.compile(loss=loss, optimizer=keras.optimizers.RMSprop(learning_rate=0.001))
-        self.internal_model.summary()
+        self.internal_model.compile(
+            loss=loss, optimizer=keras.optimizers.RMSprop(learning_rate=0.001))
     
     
     def construct_predictive_model(self):
@@ -104,7 +108,8 @@ class AgentBrain:
         
         loss = keras.losses.MeanSquaredError(reduction=tf.compat.v1.losses.Reduction.NONE)
         
-        self.location_model.compile(loss=loss, optimizer=keras.optimizers.Adam(learning_rate=0.0001))
+        self.location_model.compile(
+            loss=loss, optimizer=keras.optimizers.Adam(learning_rate=0.0001))
         self.location_model.summary()
     
     
@@ -119,7 +124,7 @@ class AgentBrain:
             self.pred_model.fit(x, y, shuffle=True)
     
     
-    def forward_process(self, inputs):
+    def forward_process_learning(self, inputs):
         same_as_last = self.memory.equals_last(inputs)
         
         # only add new data to memories
@@ -128,6 +133,8 @@ class AgentBrain:
             
             # when you reach capacity
             if hit_end:
+                self.weights_initted = True
+                
                 # get the data
                 data = cppfunctions.images_to_matrix_4d(self.memory.memory, 4, 4)
                 
@@ -137,11 +144,14 @@ class AgentBrain:
                         new_data.append(data[i])
                 data = np.array(new_data, dtype=np.float32)
                 
-                # augment the data
+                # augment the data by rotating and flipping
+                # [this should probably be done after sorting]
                 data = cppfunctions.augment_data(data, 4, 4)
                 data = np.reshape(
                     data, newshape=(data.shape[0], int(data.size / data.shape[0])))
                 
+                # sort based on norm to remove blank data, 
+                # images that are all or mostly black will have low norms.
                 indices = np.argsort(np.linalg.norm(data, axis=1))
                 data = data[indices]
                 data = data[-2000:]
@@ -149,14 +159,29 @@ class AgentBrain:
                 # use it for training
                 groups = grouping_data.find_absolute_groups(data, 300, 120, 100, 2, 100)
                 weights = cppfunctions.create_weights(groups)
+                weights = np.reshape(weights, newshape=(weights.shape[0], 4, 4))
                 
-                #set_layer_weights(self.internal_model, weights, INITIAL_LAYER_NAME)
+                self.construct_internal_model(weights.shape[0])
+                set_layer_weights(self.internal_model, weights, INITIAL_LAYER_NAME)
+                
+                print(self.internal_model.get_weights())
                 
                 return groups
     
+    def forward_process(self, inputs):
+        if self.weights_initted is False:
+            self.forward_process_learning(inputs)
+            return None
+        else:
+            hit_end = self.memory.insert_memory(inputs)
+            if hit_end:
+                x = self.memory.memory
+                self.internal_model.fit(x, x)
+    
     
     def reconstruct_internal_model(self, inputs):
-        return self.internal_model.predict(np.array([inputs]))[0]
+        if self.internal_model is not None:
+            return self.internal_model.predict(np.array([inputs]))[0]
     
     
     def pred_next_frame(self):

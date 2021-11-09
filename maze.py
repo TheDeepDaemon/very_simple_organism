@@ -1,5 +1,9 @@
 import numpy as np
 import random
+import colors
+from create_gameobject import create_gameobject
+
+GOAL_COLLISION_TYPE = 3
 
 directions = [
     np.array([1, 0], dtype=int), 
@@ -140,3 +144,77 @@ class Maze:
                     edges[j+2][i] = False
         
         return edges
+
+
+def wrap(n, size):
+    if n < 0:
+        return size + n
+    return n
+
+
+def random_maze_edge(width, height):
+    if random.randint(0, 1) == 0:
+        x, y = ((np.random.randint(0, width) * 2) + 1), (random.randint(0, 1) * -1)
+        xg, yg = (width - ((x - 1) / 2) - 1), wrap(-1 * (y + 1), height)
+        return x, y, xg, yg
+    else:
+        x, y = (random.randint(0, 1) * -1), np.random.randint(0, height)
+        xg, yg = wrap(-1 * (x + 1), width), (height - y - 1)
+        return x, y, xg, yg
+
+
+
+def create_maze(game, maze_size, dim, x_pos=0, y_pos=0):
+    edge_width = 4
+    maze = Maze(dim, dim)
+    maze.gen_random_maze()
+    edges = maze.extract_maze_edges()
+    
+    cell_size = maze_size / dim
+    cell_size_half = cell_size / 2
+    game.maze_cell_size = cell_size
+    game.maze_grid_size = dim
+    
+    rx, ry, xg, yg = random_maze_edge(dim, dim)
+    edges[rx][ry] = False
+    
+    goal_x = x_pos + cell_size_half + (xg * cell_size)
+    goal_y = y_pos + cell_size_half + (yg * cell_size)
+    
+    # place flag
+    create_gameobject(game,
+        goal_x, goal_y, cell_size / 2, cell_size / 2, 
+        colors.MAGENTA, collision_type=GOAL_COLLISION_TYPE, static=True)
+    
+    for i_ in range(int(len(edges) / 2)):
+        i = i_ * 2
+        # draw left sides
+        for j in range(len(edges[i])):
+            if edges[i][j]:
+                x = i_ * cell_size
+                y = j * cell_size + cell_size_half
+                color = (0, float(j) * 255.0 / len(edges[i]), 1.0 * 255)
+                color = colors.WHITE
+                create_gameobject(game, x_pos + x, y_pos + y, edge_width, cell_size, color=color, static=True)
+        
+        # draw top and bottom sides
+        for j in range(len(edges[i+1])):
+            if edges[i+1][j]:
+                x = i_ * cell_size + cell_size_half
+                y = j * cell_size
+                color = (0, 1.0 * 255, float(i) * 255.0 / len(edges))
+                color = colors.WHITE
+                create_gameobject(game, x_pos + x, y_pos + y, cell_size, edge_width, color=color, static=True)
+    
+    # draw right sides
+    for j in range(len(edges[-1])):
+        if edges[-1][j]:
+            x = maze_size
+            y = j * cell_size + cell_size_half
+            color = colors.CYAN
+            color = colors.WHITE
+            create_gameobject(game,
+                x_pos + x, y_pos + y, edge_width, cell_size, 
+                color, static=True)
+
+

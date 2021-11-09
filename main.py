@@ -9,17 +9,16 @@ from agent import Agent
 import numpy as np
 from display_funcs import *
 import colors
-from game_object import GameObject
-from maze import Maze
+from maze import create_maze
 import image
 import cv2
 import matplotlib.pyplot as plt
+from create_gameobject import create_gameobject
 
 
 AGENT_COLLISION_TYPE = 1
 MAZE_COLLISION_TYPE = 2
 GOAL_COLLISION_TYPE = 3
-
 
 SCREEN_WIDTH = 600
 SCREEN_HEIGHT = 600
@@ -29,22 +28,6 @@ AGENT_TURN_SPEED = 0.025
 AGENT_VIEW_SHAPE = (128, 96)
 MAZE_POSITION = (30, 30)
 MAZE_SIZE = 500
-
-
-def wrap(n, size):
-    if n < 0:
-        return size + n
-    return n
-
-def random_maze_edge(width, height):
-    if random.randint(0, 1) == 0:
-        x, y = ((np.random.randint(0, width) * 2) + 1), (random.randint(0, 1) * -1)
-        xg, yg = (width - ((x - 1) / 2) - 1), wrap(-1 * (y + 1), height)
-        return x, y, xg, yg
-    else:
-        x, y = (random.randint(0, 1) * -1), np.random.randint(0, height)
-        xg, yg = wrap(-1 * (x + 1), width), (height - y - 1)
-        return x, y, xg, yg
 
 
 def grid_activation(x, size):
@@ -117,67 +100,9 @@ class Game:
         self.agent.body.velocity = (0, 0)
         return True
     
-    def create_gameobject(self, x, y, width, height, color, collision_type=1, static=False):
-        obj = GameObject(
-            self, (x, y), 
-            (width, height), 
-            col_type=collision_type, 
-            color=color, static=static)
-        self.game_objects.append(obj)
-        return obj
+    def create_and_add_gameobject(self, x, y, width, height, color, collision_type=1, static=False):
+        return create_gameobject(self, x, y, width, height, color, collision_type, static)
     
-    def create_maze(self, maze_size, dim, x_pos=0, y_pos=0):
-        edge_width = 4
-        maze = Maze(dim, dim)
-        maze.gen_random_maze()
-        edges = maze.extract_maze_edges()
-        
-        cell_size = maze_size / dim
-        cell_size_half = cell_size / 2
-        self.maze_cell_size = cell_size
-        self.maze_grid_size = dim
-        
-        rx, ry, xg, yg = random_maze_edge(dim, dim)
-        edges[rx][ry] = False
-        
-        goal_x = x_pos + cell_size_half + (xg * cell_size)
-        goal_y = y_pos + cell_size_half + (yg * cell_size)
-        
-        # place flag
-        self.create_gameobject(
-            goal_x, goal_y, cell_size / 2, cell_size / 2, 
-            colors.MAGENTA, collision_type=GOAL_COLLISION_TYPE, static=True)
-        
-        for i_ in range(int(len(edges) / 2)):
-            i = i_ * 2
-            # draw left sides
-            for j in range(len(edges[i])):
-                if edges[i][j]:
-                    x = i_ * cell_size
-                    y = j * cell_size + cell_size_half
-                    color = (0, float(j) * 255.0 / len(edges[i]), 1.0 * 255)
-                    color = colors.WHITE
-                    self.create_gameobject(x_pos + x, y_pos + y, edge_width, cell_size, color=color, static=True)
-            
-            # draw top and bottom sides
-            for j in range(len(edges[i+1])):
-                if edges[i+1][j]:
-                    x = i_ * cell_size + cell_size_half
-                    y = j * cell_size
-                    color = (0, 1.0 * 255, float(i) * 255.0 / len(edges))
-                    color = colors.WHITE
-                    self.create_gameobject(x_pos + x, y_pos + y, cell_size, edge_width, color=color, static=True)
-        
-        # draw right sides
-        for j in range(len(edges[-1])):
-            if edges[-1][j]:
-                x = maze_size
-                y = j * cell_size + cell_size_half
-                color = colors.CYAN
-                color = colors.WHITE
-                self.create_gameobject(
-                    x_pos + x, y_pos + y, edge_width, cell_size, 
-                    color, static=True)
     
     
     def run_game(self):
@@ -187,7 +112,7 @@ class Game:
         forward = False
         right = False
         left = False
-        self.create_maze(maze_size=MAZE_SIZE, dim=10, x_pos=MAZE_POSITION[0], y_pos=MAZE_POSITION[1])
+        create_maze(self, maze_size=MAZE_SIZE, dim=10, x_pos=MAZE_POSITION[0], y_pos=MAZE_POSITION[1])
         
         handler = self.space.add_collision_handler(AGENT_COLLISION_TYPE, GOAL_COLLISION_TYPE)
         handler.begin = self.reset_player_position
@@ -236,18 +161,11 @@ class Game:
                 #draw_minidisplay(self.display, x, 0, 128)
                 
                 
-                output = agent.brain.forward_process(x)
-                if output is not None:
-                    groups = output
-                    print("groups: ", len(groups))
-                    grps = groups[:10]
-                    for group in grps:
-                        plt.imshow(np.reshape(group, newshape=(4, 4, 1)))
-                        plt.show()
-                
-                #y = agent.brain.pred_next_frame()
-                #y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
-                #draw_minidisplay(self.display, y, 128, 0)
+                agent.brain.forward_process(x)
+                y = agent.brain.reconstruct_internal_model(x)
+                if y is not None:
+                    y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
+                    draw_minidisplay(self.display, y, 128, 0)
             except Exception as e:
                 print(e)
             
