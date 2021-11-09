@@ -1,4 +1,5 @@
 from operator import le
+from os import name
 from random import shuffle
 from PIL.Image import new
 import numpy as np
@@ -29,9 +30,6 @@ ST_MEM_SIZE = 4
 NUM_EARLY_MEMORIES = 256
 PREDICTION_FRAMES = 4
 
-INITIAL_LAYER_NAME = 'layer1'
-
-
 
 def create_rand_arr(shape):
     initializer = keras.initializers.GlorotUniform()
@@ -54,7 +52,6 @@ def get_sequences(data, seq_len):
 class AgentBrain:
     
     def __init__(self):
-        #self.construct_predictive_model()
         self.memory = MemoryBuffer(NUM_MEMORIES, ST_MEM_SIZE, INPUT_SHAPE)
         self.eval_counter = 0
         self.last_frames = [np.zeros(shape=INPUT_SHAPE) for _ in range(PREDICTION_FRAMES)]
@@ -66,13 +63,13 @@ class AgentBrain:
         il = layers.Input(shape=INPUT_SHAPE)
         layer = layers.Conv2D(
             initial_filters, (4, 4), activation='relu', 
-            name=INITIAL_LAYER_NAME)(il)
+            name='layer1')(il)
         layer = layers.Flatten()(layer)
         layer = layers.Dense(16, activation='relu')(layer)
         layer = layers.Dense(13 * 13 * initial_filters)(layer)
         layer = layers.Reshape(target_shape=(13, 13, initial_filters))(layer)
         layer = layers.Conv2DTranspose(
-            3, (4, 4), activation='sigmoid')(layer)
+            3, (4, 4), activation='sigmoid', name='conv_out')(layer)
         
         self.internal_model = keras.Model(inputs=il, outputs=layer)
         
@@ -81,6 +78,8 @@ class AgentBrain:
         
         self.internal_model.compile(
             loss=loss, optimizer=keras.optimizers.RMSprop(learning_rate=0.001))
+        
+        self.internal_model.summary()
     
     
     def construct_predictive_model(self):
@@ -134,21 +133,21 @@ class AgentBrain:
             # when you reach capacity
             if hit_end:
                 self.weights_initted = True
+                x = self.memory.memory
+                
+                # augment the data by rotating and flipping
+                x = cppfunctions.augment_data(x, 16, 16)
+                
+                print(x.shape)
                 
                 # get the data
-                data = cppfunctions.images_to_matrix_4d(self.memory.memory, 4, 4)
+                data = cppfunctions.images_to_matrix(x, 4, 4)
                 
                 new_data = []
                 for i in range(len(data)):
                     if np.linalg.norm(data[i]) >= 0.1:
                         new_data.append(data[i])
                 data = np.array(new_data, dtype=np.float32)
-                
-                # augment the data by rotating and flipping
-                # [this should probably be done after sorting]
-                data = cppfunctions.augment_data(data, 4, 4)
-                data = np.reshape(
-                    data, newshape=(data.shape[0], int(data.size / data.shape[0])))
                 
                 # sort based on norm to remove blank data, 
                 # images that are all or mostly black will have low norms.
@@ -161,10 +160,14 @@ class AgentBrain:
                 weights = cppfunctions.create_weights(groups)
                 weights = np.reshape(weights, newshape=(weights.shape[0], 4, 4))
                 
-                self.construct_internal_model(weights.shape[0])
-                set_layer_weights(self.internal_model, weights, INITIAL_LAYER_NAME)
+                self.construct_internal_model(weights.shape[0] * 2)
                 
-                print(self.internal_model.get_weights())
+                set_layer_weights(self.internal_model, weights, 'layer1')
+                set_layer_weights(self.internal_model, weights, 'conv_out')
+                
+                x = np.reshape(x, newshape=(*x.shape, 1))
+                
+                self.internal_model.fit(x, x, epochs=10)
                 
                 return groups
     
@@ -176,7 +179,9 @@ class AgentBrain:
             hit_end = self.memory.insert_memory(inputs)
             if hit_end:
                 x = self.memory.memory
-                self.internal_model.fit(x, x)
+                x = cppfunctions.augment_data(x, 16, 16)
+                x = np.reshape(x, newshape=(*x.shape, 1))
+                self.internal_model.fit(x, x, epochs=100)
     
     
     def reconstruct_internal_model(self, inputs):

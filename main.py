@@ -179,6 +179,7 @@ class Game:
             if forward:
                 agent.body.apply_impulse_at_local_point((AGENT_SPEED, 0), (0, 0))
             
+            
             pygame.display.update()
             self.clock.tick(FPS)
             self.space.step(1.0 / FPS)

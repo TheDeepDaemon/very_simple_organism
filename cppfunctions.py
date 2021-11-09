@@ -159,6 +159,8 @@ def calc_groups_entropy(arrs):
     return entropy
 
 
+# augment data by adding entries 
+# that are rotated and scaled
 def augment_data(data, rows=None, cols=None):
     if rows is None:
         rows = data.shape[1]
