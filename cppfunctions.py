@@ -15,7 +15,7 @@ def generate_random_data(rows, cols):
     data += offset
     return data
 
-cpp_code_dir = 'cpp_code'
+cpp_code_dir = '..\\bin\\'
 fname = 'main.so'
 path = cpp_code_dir + '\\' + fname
 cpp_functions = CDLL(path)
