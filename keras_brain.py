@@ -10,7 +10,7 @@ from tensorflow.python.keras.backend import dtype
 from memory_buffer import MemoryBuffer
 import cppfunctions
 import grouping_data
-from set_weights import set_layer_weights
+from neural_network_util import set_layer_weights
 
 
 INPUT_SHAPE = (16, 16, 1)
@@ -52,7 +52,7 @@ def get_sequences(data, seq_len):
 class AgentBrain:
     
     def __init__(self):
-        self.memory = MemoryBuffer(NUM_MEMORIES, ST_MEM_SIZE, INPUT_SHAPE)
+        self.memory = MemoryBuffer(NUM_MEMORIES, ST_MEM_SIZE, INPUT_SHAPE, 16)
         self.eval_counter = 0
         self.last_frames = [np.zeros(shape=INPUT_SHAPE) for _ in range(PREDICTION_FRAMES)]
         self.weights_initted = False
@@ -62,14 +62,23 @@ class AgentBrain:
     def construct_internal_model(self, initial_filters):
         il = layers.Input(shape=INPUT_SHAPE)
         layer = layers.Conv2D(
-            initial_filters, (4, 4), activation='relu', 
+            initial_filters, (4, 4), 
+            activation='relu', 
             name='layer1')(il)
-        layer = layers.Flatten()(layer)
+        layer = layers.Conv2D(
+            16, (4, 4), 
+            activation='relu')(layer)
+        layer = layers.Dense(1, activation='relu')(layer)
         layer = layers.Dense(16, activation='relu')(layer)
-        layer = layers.Dense(13 * 13 * initial_filters)(layer)
-        layer = layers.Reshape(target_shape=(13, 13, initial_filters))(layer)
+        
         layer = layers.Conv2DTranspose(
-            3, (4, 4), activation='sigmoid', name='conv_out')(layer)
+            initial_filters, (4, 4), 
+            activation='relu')(layer)
+        
+        layer = layers.Conv2DTranspose(
+            1, (4, 4), 
+            activation='sigmoid', 
+            name='conv_out')(layer)
         
         self.internal_model = keras.Model(inputs=il, outputs=layer)
         
@@ -77,50 +86,47 @@ class AgentBrain:
             reduction=tf.compat.v1.losses.Reduction.NONE)
         
         self.internal_model.compile(
-            loss=loss, optimizer=keras.optimizers.RMSprop(learning_rate=0.001))
+            loss=loss, optimizer=keras.optimizers.RMSprop(
+                learning_rate=0.001))
         
         self.internal_model.summary()
     
     
-    def construct_predictive_model(self):
-        latent_size = 16
+    def construct_grid_model(self):
+        im = self.internal_model
+        im.trainable = False
         
-        il = layers.Input(shape=(PREDICTION_FRAMES, *INPUT_SHAPE))
-        layer = layers.Conv3D(8, (2, 4, 4), activation='relu')(il)
-        layer = layers.Flatten()(layer)
-        layer = layers.Dense(latent_size, activation='relu')(layer)
-        layer = layers.Dense(13 * 13 * 8)(layer)
-        layer = layers.Reshape(target_shape=(13, 13, 8))(layer)
-        layer = layers.Conv2DTranspose(3, (4, 4), activation='sigmoid')(layer)
-        self.pred_model = keras.Model(inputs=il, outputs=layer)
-        optimizer = keras.optimizers.Adam(learning_rate=0.0001)
-        self.pred_model.compile(optimizer=optimizer, loss="binary_crossentropy")
+        model = keras.Sequential()
+        model.add(im)
+        model.add(layers.Conv2D(16, (4, 4), activation='relu'))
+        model.add(layers.Flatten())
+        model.add(layers.Dense(16, activation='relu'))
+        
+        self.grid_model = model
+        
+        loss = keras.losses.MeanSquaredError(
+            reduction=tf.compat.v1.losses.Reduction.NONE)
+        
+        self.grid_model.compile(
+            loss=loss, 
+            optimizer=keras.optimizers.Adam(learning_rate=0.0001))
+        self.grid_model.summary()
     
     
-    def construct_location_model(self):
-        il = layers.Input(shape=INPUT_SHAPE)
-        layer = layers.Conv2D(16, (4, 4), activation='relu')(il)
-        layer = layers.Flatten()(layer)
-        layer = layers.Dense(16, activation='relu')(layer)
-        
-        self.location_model = keras.Model(inputs=il, outputs=layer)
-        
-        loss = keras.losses.MeanSquaredError(reduction=tf.compat.v1.losses.Reduction.NONE)
-        
-        self.location_model.compile(
-            loss=loss, optimizer=keras.optimizers.Adam(learning_rate=0.0001))
-        self.location_model.summary()
+    def train_internal_model(self, data, epochs=10):
+        self.internal_model.fit(data, data, epochs=epochs)
     
     
-    def forward_process_(self, inputs):
+    def train_grid_model(self, epochs=10):
+        self.grid_model.fit(
+            self.memory.memory, 
+            self.memory.grid_memory, 
+            epochs=epochs)
+    
+    
+    def add_last_frame(self, inputs):
         self.last_frames = self.last_frames[1:]
         self.last_frames.append(inputs)
-        print("added memory")
-        hit_end = self.memory.insert_memory(inputs)
-        if hit_end:
-            x, y = get_sequences(self.memory.memory, PREDICTION_FRAMES)
-            print("training on memories...")
-            self.pred_model.fit(x, y, shuffle=True)
     
     
     def forward_process_learning(self, inputs):
@@ -161,27 +167,29 @@ class AgentBrain:
                 weights = np.reshape(weights, newshape=(weights.shape[0], 4, 4))
                 
                 self.construct_internal_model(weights.shape[0] * 2)
+                #self.construct_grid_model()
                 
                 set_layer_weights(self.internal_model, weights, 'layer1')
                 set_layer_weights(self.internal_model, weights, 'conv_out')
                 
                 x = np.reshape(x, newshape=(*x.shape, 1))
                 
-                self.internal_model.fit(x, x, epochs=10)
+                self.train_internal_model(x)
                 
                 return groups
     
-    def forward_process(self, inputs):
+    
+    def forward_process(self, inputs, grid_activations):
         if self.weights_initted is False:
             self.forward_process_learning(inputs)
             return None
         else:
-            hit_end = self.memory.insert_memory(inputs)
+            hit_end = self.memory.insert_memory(inputs, grid_activations)
             if hit_end:
-                x = self.memory.memory
-                x = cppfunctions.augment_data(x, 16, 16)
+                x = cppfunctions.augment_data(self.memory.memory, 16, 16)
                 x = np.reshape(x, newshape=(*x.shape, 1))
-                self.internal_model.fit(x, x, epochs=100)
+                self.train_internal_model(x)
+                self.train_grid_model()
     
     
     def reconstruct_internal_model(self, inputs):
@@ -199,5 +207,3 @@ class AgentBrain:
     
     def load_model(self):
         self.internal_model = keras.models.load_model('internal_model')
-
-

@@ -25,9 +25,11 @@ SCREEN_HEIGHT = 600
 FPS = 60
 AGENT_SPEED = 10000 * 40
 AGENT_TURN_SPEED = 0.025
-AGENT_VIEW_SHAPE = (128, 96)
+AGENT_VIEW_SHAPE = (128, 128)
 MAZE_POSITION = (30, 30)
 MAZE_SIZE = 500
+
+RAW_MINIDISPLAY = True
 
 
 def grid_activation(x, size):
@@ -40,7 +42,8 @@ def grid_activation_inv(x, size):
         return 1.0
     return 0.0
 
-def grid_position(x, y, grid_x, grid_y, cell_size, maze_size):
+def grid_position(pos, grid_x, grid_y, cell_size, maze_size):
+    x, y = pos
     x_coord = x - grid_x
     y_coord = y - grid_y
     nodes = np.array([
@@ -61,27 +64,6 @@ def grid_position(x, y, grid_x, grid_y, cell_size, maze_size):
         grid_activation_inv(x_coord, maze_size / 2), 
         grid_activation_inv(y_coord, maze_size / 2),], dtype=np.float32)
     return nodes
-
-
-def to_greyscale(image):
-    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-
-def convert3dto1d(arr):
-    new_arr = np.zeros(shape=(arr.shape[0], arr.shape[1], 3))
-    for i in range(arr.shape[0]):
-        for j in range(arr.shape[1]):
-            new_arr[i, j, 0] = arr[i, j, 0]
-            new_arr[i, j, 1] = arr[i, j, 0]
-            new_arr[i, j, 2] = arr[i, j, 0]
-    return new_arr
-
-
-
-
-def func(display, image):
-    draw_minidisplay(
-        display, cv2.resize(cv2.rotate(convert3dto1d(image), rotateCode=cv2.ROTATE_90_CLOCKWISE), dsize=(SCREEN_WIDTH, SCREEN_HEIGHT)), 0, 0)
 
 
 class Game:
@@ -129,9 +111,8 @@ class Game:
                     elif event.key == pygame.K_LEFT:
                         left = True
                     elif event.key == pygame.K_q:
-                        x, y = agent.body.position
                         print(grid_position(
-                            x, y, MAZE_POSITION[0], MAZE_POSITION[1], 
+                            agent.body.position, MAZE_POSITION[0], MAZE_POSITION[1], 
                             self.maze_cell_size, MAZE_SIZE))
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP:
@@ -157,15 +138,24 @@ class Game:
                 subimage = np.array(subimage, dtype=np.float32) / 255.0
                 x = np.reshape(to_greyscale(subimage_to_inputs(subimage)), newshape=(16, 16, 1))
                 
-                draw_minidisplay(self.display, subimage, 0, 0)
-                #draw_minidisplay(self.display, x, 0, 128)
+                if RAW_MINIDISPLAY:
+                    draw_minidisplay(self.display, subimage, 0, 0)
+                else:
+                    draw_minidisplay(
+                        self.display, cv2.resize(outputs_to_image(x), (128, 128)), 0, 0)
                 
+                # grid pos is shape (16,)
+                grid_pos = grid_position(
+                    agent.body.position, MAZE_POSITION[0], MAZE_POSITION[1], 
+                    self.maze_cell_size, MAZE_SIZE)
                 
-                agent.brain.forward_process(x)
+                agent.brain.forward_process(x, grid_activations=grid_pos)
                 y = agent.brain.reconstruct_internal_model(x)
                 if y is not None:
+                    y = outputs_to_image(y)
                     y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
                     draw_minidisplay(self.display, y, 128, 0)
+                
             except Exception as e:
                 print(e)
             

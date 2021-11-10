@@ -4,16 +4,20 @@ from numpy.core.defchararray import index
 
 class MemoryBuffer:
     
-    def __init__(self, capacity, short_term_memsize, input_shape):
+    def __init__(self, capacity, short_term_memsize, input_shape, grid_nodes):
         shape = (capacity, *input_shape)
         self.memory = np.zeros(shape=shape, dtype=np.float32)
+        self.grid_memory = np.zeros(shape=(capacity, grid_nodes), dtype=np.float32)
         self.capacity = capacity
         self.short_term_memsize = short_term_memsize
         self.index = 0
-        self.lt_memory = []
     
-    def insert_memory(self, inputs):
+    def insert_memory(self, inputs, grid_activations=None):
         self.memory[self.index] = inputs
+        
+        if grid_activations is not None:
+            self.grid_memory[self.index] = grid_activations
+        
         self.index += 1
         self.index = self.index % self.capacity
         hit_end = (self.index == 0)
