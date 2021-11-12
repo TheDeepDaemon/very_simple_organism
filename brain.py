@@ -1,12 +1,9 @@
 from operator import le
-from os import name
-from random import shuffle
-from PIL.Image import new
 import numpy as np
+from numpy.core.fromnumeric import reshape
 import tensorflow as tf
 import keras
 from keras import layers
-from tensorflow.python.keras.backend import dtype
 from memory_buffer import MemoryBuffer
 import cppfunctions
 import grouping_data
@@ -27,24 +24,8 @@ NUM_MEMORIES = 1000
 # of the highest derivative of motion
 # the network should be able to detect
 ST_MEM_SIZE = 4
-NUM_EARLY_MEMORIES = 256
 PREDICTION_FRAMES = 4
 
-
-def create_rand_arr(shape):
-    initializer = keras.initializers.GlorotUniform()
-    return initializer(shape=shape)
-
-
-def get_sequences(data, seq_len):
-    size = len(data) - seq_len
-    dshape = data[0].shape
-    seqs = np.zeros(shape=(size, seq_len, *dshape))
-    results = np.zeros(shape=(size, *dshape))
-    for i in range(size):
-        seqs[i] = data[i:i+seq_len]
-        results[i] = data[i+seq_len]
-    return seqs, results
 
 
 # agent brain, handles all info 
@@ -60,6 +41,8 @@ class AgentBrain:
     
     
     def construct_internal_model(self, initial_filters):
+        
+        # encoder layers
         il = layers.Input(shape=INPUT_SHAPE)
         layer = layers.Conv2D(
             initial_filters, (4, 4), 
@@ -68,7 +51,14 @@ class AgentBrain:
         layer = layers.Conv2D(
             16, (4, 4), 
             activation='relu')(layer)
+        
+        # latent dimension
         layer = layers.Dense(1, activation='relu')(layer)
+        
+        # store the encoder
+        self.encoder = keras.Model(inputs=il, outputs=layer)
+        
+        # decoder layers
         layer = layers.Dense(16, activation='relu')(layer)
         
         layer = layers.Conv2DTranspose(
@@ -80,6 +70,7 @@ class AgentBrain:
             activation='sigmoid', 
             name='conv_out')(layer)
         
+        # create the model
         self.internal_model = keras.Model(inputs=il, outputs=layer)
         
         loss = keras.losses.MeanSquaredError(
@@ -88,17 +79,15 @@ class AgentBrain:
         self.internal_model.compile(
             loss=loss, optimizer=keras.optimizers.RMSprop(
                 learning_rate=0.001))
-        
-        self.internal_model.summary()
     
     
     def construct_grid_model(self):
-        im = self.internal_model
+        im = self.encoder
         im.trainable = False
         
         model = keras.Sequential()
         model.add(im)
-        model.add(layers.Conv2D(16, (4, 4), activation='relu'))
+        model.add(layers.Conv2D(16, (3, 3), activation='relu'))
         model.add(layers.Flatten())
         model.add(layers.Dense(16, activation='relu'))
         
@@ -110,18 +99,58 @@ class AgentBrain:
         self.grid_model.compile(
             loss=loss, 
             optimizer=keras.optimizers.Adam(learning_rate=0.0001))
-        self.grid_model.summary()
     
     
-    def train_internal_model(self, data, epochs=10):
-        self.internal_model.fit(data, data, epochs=epochs)
+    def train_internal_model(
+        self, data, epochs=10, 
+        batch_size=16, use_model_fit=False):
+        
+        if not use_model_fit:
+            for _ in range(epochs):
+                np.random.shuffle(data)
+                num_batches = int(len(data) / batch_size)
+                for i_ in range(num_batches):
+                    i = i_ * batch_size
+                    x = data[i:i+batch_size]
+                    self.internal_model.train_on_batch(x, x)
+                end_i = num_batches * batch_size
+                if end_i < len(data):
+                    x = data[end_i:]
+                    self.internal_model.train_on_batch(x, x)
+        else:
+            self.internal_model.fit(data, data, epochs=epochs)
     
     
-    def train_grid_model(self, epochs=10):
-        self.grid_model.fit(
-            self.memory.memory, 
-            self.memory.grid_memory, 
-            epochs=epochs)
+    def train_grid_model(
+        self, epochs=10, batch_size=16, 
+        use_model_fit=False):
+        
+        data = self.memory.memory
+        grid_data = self.memory.grid_memory
+        
+        permutation = np.arange(
+            start=0, stop=len(data), 
+            step=1, dtype=np.uint32)
+        
+        if not use_model_fit:
+            for _ in range(epochs):
+                
+                np.random.shuffle(permutation)
+                data = data[permutation]
+                grid_data = grid_data[permutation]
+                num_batches = int(len(data) / batch_size)
+                for i_ in range(num_batches):
+                    i = i_ * batch_size
+                    x = data[i:i+batch_size]
+                    y = grid_data[i:i+batch_size]
+                    self.grid_model.train_on_batch(x, y)
+                end_i = num_batches * batch_size
+                if end_i < len(data):
+                    x = data[end_i:]
+                    y = grid_data[end_i:]
+                    self.grid_model.train_on_batch(x, y)
+        else:
+            self.grid_model.fit(data, grid_data, epochs=epochs)
     
     
     def add_last_frame(self, inputs):
@@ -129,7 +158,7 @@ class AgentBrain:
         self.last_frames.append(inputs)
     
     
-    def forward_process_learning(self, inputs):
+    def learn_groups(self, inputs):
         same_as_last = self.memory.equals_last(inputs)
         
         # only add new data to memories
@@ -143,8 +172,6 @@ class AgentBrain:
                 
                 # augment the data by rotating and flipping
                 x = cppfunctions.augment_data(x, 16, 16)
-                
-                print(x.shape)
                 
                 # get the data
                 data = cppfunctions.images_to_matrix(x, 4, 4)
@@ -167,7 +194,7 @@ class AgentBrain:
                 weights = np.reshape(weights, newshape=(weights.shape[0], 4, 4))
                 
                 self.construct_internal_model(weights.shape[0] * 2)
-                #self.construct_grid_model()
+                self.construct_grid_model()
                 
                 set_layer_weights(self.internal_model, weights, 'layer1')
                 set_layer_weights(self.internal_model, weights, 'conv_out')
@@ -179,9 +206,11 @@ class AgentBrain:
                 return groups
     
     
-    def forward_process(self, inputs, grid_activations):
+    def process_inputs(
+        self, inputs, grid_activations, pos_delta):
+        
         if self.weights_initted is False:
-            self.forward_process_learning(inputs)
+            self.learn_groups(inputs)
             return None
         else:
             hit_end = self.memory.insert_memory(inputs, grid_activations)
@@ -197,8 +226,9 @@ class AgentBrain:
             return self.internal_model.predict(np.array([inputs]))[0]
     
     
-    def pred_next_frame(self):
-        return self.pred_model.predict(np.array([self.last_frames]))[0]
+    def predict_grid_position(self, inputs):
+        if self.grid_model is not None:
+            return self.grid_model.predict(np.array([inputs]))[0]
     
     
     def save_model(self):

@@ -89,8 +89,11 @@ extern "C" {
         
     }
     
-    // revise this function
-    void joinSimilar(float* dataPtr, int64 rows, int64 cols, bool* keep, float threshold) {
+    // remove things that are sufficiently similar.
+    // indicate the result using an array of bools called "keep";
+    // the bool value corresponding to a row tells whether to 
+    // keep or remove. 
+    void removeSimilar(float* dataPtr, int64 rows, int64 cols, bool* keep, float threshold) {
         
         Eigen::Map<dmat> data(dataPtr, rows, cols);
         memset(keep, true, rows);

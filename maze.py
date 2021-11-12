@@ -181,10 +181,11 @@ def create_maze(game, maze_size, dim, x_pos=0, y_pos=0):
     goal_x = x_pos + cell_size_half + (xg * cell_size)
     goal_y = y_pos + cell_size_half + (yg * cell_size)
     
-    # place flag
-    create_gameobject(game,
-        goal_x, goal_y, cell_size / 2, cell_size / 2, 
-        colors.MAGENTA, collision_type=GOAL_COLLISION_TYPE, static=True)
+    if False:
+        # place flag
+        create_gameobject(game,
+            goal_x, goal_y, cell_size / 2, cell_size / 2, 
+            colors.MAGENTA, collision_type=GOAL_COLLISION_TYPE, static=True)
     
     for i_ in range(int(len(edges) / 2)):
         i = i_ * 2

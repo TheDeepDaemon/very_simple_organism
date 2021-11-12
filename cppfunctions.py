@@ -4,7 +4,10 @@ import ctypes
 from ctypes import CDLL
 import numpy as np
 
-# used for debugging
+
+# generates 1 or 0 values
+# in the shape of a matrix.
+# used for testing and debugging.
 def generate_random_data(rows, cols):
     offset = np.reshape(np.random.standard_normal(rows * cols), newshape=(rows, cols)) * 0.1
     data = np.zeros(shape=(rows, cols), dtype=np.float32)
@@ -14,6 +17,7 @@ def generate_random_data(rows, cols):
         data[i][r-1] = 1.0
     data += offset
     return data
+
 
 cpp_code_dir = '..\\bin\\'
 fname = 'main.so'
@@ -70,6 +74,9 @@ def images_to_matrix_4d(imgs, wCols, wRows):
         return images_to_matrix(imgs, wCols, wRows * channels)
 
 
+# used to convert the contents of
+# the returned values of find_groups
+# to a python list that contains groups
 def get_indices_as_list(indices):
     index_list = []
     for i in range(indices.shape[0]):
@@ -85,16 +92,24 @@ def get_indices_as_list(indices):
     return index_list
 
 
+# apply a sigmoid to all elements of an array
 def apply_sigmoid(np_arr):
     cpp_functions.applySigmoid(get_nparr_ptr(np_arr), ctypes.c_uint64(np_arr.size))
 
 
+# find the groups in the data by converting the relationships
+# in the data to a markov matrix and multiplying by itself
+# repeatedly in a clustering algorithm
 def find_groups(data, iterations, power, inflation, max_num_groups=None):
+    # the sigmoid makes the differences between the elements
+    # of a vector more distinct (over or under the middle val)
     apply_sigmoid(data)
     rows = data.shape[0]
     if max_num_groups is None:
         max_num_groups = rows
     
+    # the indices are initted to -1, so any vals that are -1
+    # indicate that that has not been set
     indices = np.ones(shape=(max_num_groups, rows), dtype=np.int32) * -1
     cpp_functions.findGroups(
         *get_nparr_args(data), 
@@ -104,6 +119,9 @@ def find_groups(data, iterations, power, inflation, max_num_groups=None):
     return get_indices_as_list(indices)
 
 
+# remove any entries that are sufficiently different
+# from the existing group, uses second difference,
+# so there are no hyperparameters needed
 def remove_outliers(data):
     to_keep = np.zeros(data.shape[0], dtype=bool)
     cpp_functions.removeOutliers(
@@ -118,10 +136,14 @@ def remove_outliers(data):
     return np.array(new_data, dtype=np.float32)
 
 
-def join_similar(data):
+# remove entries that are too similar to others
+def remove_similar(data):
     rows = data.shape[0]
     keep = np.zeros(rows, dtype=bool)
-    cpp_functions.joinSimilar(*get_nparr_args(data), get_nparr_ptr(keep), ctypes.c_float(0.1))
+    cpp_functions.removeSimilar(
+        *get_nparr_args(data), 
+        get_nparr_ptr(keep), 
+        ctypes.c_float(0.1))
     new_data = []
     for i in range(rows):
         if keep[i]:

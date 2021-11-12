@@ -164,12 +164,14 @@ int64 indexOfLowest(const evec& vec) {
 // the sigmoid is centered on the average value, 
 // and it has a slope of 16
 void applyAdjustedSigmoid(float* arr, size_t size) {
+	// find the average value
     float ave = 0.0f;
     for (size_t i = 0; i < size; i++) {
         ave += arr[i];
     }
     ave /= (double)size;
     
+	// apply the sigmoid function
     for (size_t i = 0; i < size; i++) {
         arr[i] = sigmoid(arr[i], ave, 16);
     }

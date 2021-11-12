@@ -1,4 +1,5 @@
-
+# A list of colors that can be used
+# these are RGB tuples
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)

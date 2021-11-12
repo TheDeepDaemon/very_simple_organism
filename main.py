@@ -29,7 +29,7 @@ AGENT_VIEW_SHAPE = (128, 128)
 MAZE_POSITION = (30, 30)
 MAZE_SIZE = 500
 
-RAW_MINIDISPLAY = True
+RAW_MINIDISPLAY = False
 
 
 def grid_activation(x, size):
@@ -77,28 +77,34 @@ class Game:
         space.damping = 0.01
         self.starting_pos = (50, 550)
     
+    
     def reset_player_position(self, arbiter, space, data):
         self.agent.body.position = self.starting_pos
         self.agent.body.velocity = (0, 0)
         return True
     
+    
     def create_and_add_gameobject(self, x, y, width, height, color, collision_type=1, static=False):
         return create_gameobject(self, x, y, width, height, color, collision_type, static)
     
     
-    
     def run_game(self):
+        
+        # init variables
         agent = Agent(self, self.starting_pos, 12, AGENT_COLLISION_TYPE)
         self.agent = agent
         self.game_objects.append(agent)
+        pos_prev = agent.body.position
         forward = False
         right = False
         left = False
         create_maze(self, maze_size=MAZE_SIZE, dim=10, x_pos=MAZE_POSITION[0], y_pos=MAZE_POSITION[1])
         
+        # set the flag to send the agent/player to the beginning
         handler = self.space.add_collision_handler(AGENT_COLLISION_TYPE, GOAL_COLLISION_TYPE)
         handler.begin = self.reset_player_position
         
+        # main loop
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -111,9 +117,7 @@ class Game:
                     elif event.key == pygame.K_LEFT:
                         left = True
                     elif event.key == pygame.K_q:
-                        print(grid_position(
-                            agent.body.position, MAZE_POSITION[0], MAZE_POSITION[1], 
-                            self.maze_cell_size, MAZE_SIZE))
+                        print()
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP:
                         forward = False
@@ -128,9 +132,11 @@ class Game:
             cam_y = agent.body.position[1] - (SCREEN_HEIGHT / 2)
             self.camera_pos = (cam_x, cam_y)
             
+            # set the screen to black, then draw everything
             self.display.fill(colors.BLACK)
             [obj.draw() for obj in self.game_objects]
             
+            # do all the AI stuff
             try:
                 subimage = image.get_subimage(
                     self.display, -agent.body.angle, 
@@ -138,6 +144,8 @@ class Game:
                 subimage = np.array(subimage, dtype=np.float32) / 255.0
                 x = np.reshape(to_greyscale(subimage_to_inputs(subimage)), newshape=(16, 16, 1))
                 
+                # raw means the literal image patch that is used
+                # else means show the processed (shrunk) image
                 if RAW_MINIDISPLAY:
                     draw_minidisplay(self.display, subimage, 0, 0)
                 else:
@@ -149,7 +157,15 @@ class Game:
                     agent.body.position, MAZE_POSITION[0], MAZE_POSITION[1], 
                     self.maze_cell_size, MAZE_SIZE)
                 
-                agent.brain.forward_process(x, grid_activations=grid_pos)
+                # pos delta is the change in position
+                pos_delta = agent.body.position - pos_prev
+                
+                # feed input data
+                agent.brain.process_inputs(
+                    x, grid_activations=grid_pos, pos_delta=pos_delta)
+                
+                
+                # create minidisplay for the nn model contents
                 y = agent.brain.reconstruct_internal_model(x)
                 if y is not None:
                     y = outputs_to_image(y)
@@ -169,7 +185,7 @@ class Game:
             if forward:
                 agent.body.apply_impulse_at_local_point((AGENT_SPEED, 0), (0, 0))
             
-            
+            pos_prev = agent.body.position
             pygame.display.update()
             self.clock.tick(FPS)
             self.space.step(1.0 / FPS)

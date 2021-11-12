@@ -1,5 +1,5 @@
 import numpy as np
-
+import keras
 
 def add_rows_to_dense(model, weights_index, rows):
     '''modify weights of a keras model to add these rows'''
@@ -35,3 +35,22 @@ def set_layer_weights(model, kernels, layer_name):
             layer.set_weights(weights)
             break
 
+
+# use GlorotUniform to make a random array of values
+def create_rand_arr(shape):
+    initializer = keras.initializers.GlorotUniform()
+    return initializer(shape=shape)
+
+
+# get sequences of a few frames in a row
+# that can be used to train the 
+# prediction algorithm
+def get_sequences(data, seq_len):
+    size = len(data) - seq_len
+    dshape = data[0].shape
+    seqs = np.zeros(shape=(size, seq_len, *dshape))
+    results = np.zeros(shape=(size, *dshape))
+    for i in range(size):
+        seqs[i] = data[i:i+seq_len]
+        results[i] = data[i+seq_len]
+    return seqs, results

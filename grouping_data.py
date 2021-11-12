@@ -66,7 +66,7 @@ def find_absolute_groups(data, stop_at, split_size, markov_iterations, clusterin
             groups = new_groups
         else:
             break
-    return cppfunctions.join_similar(groups)
+    return cppfunctions.remove_similar(groups)
 
 
 

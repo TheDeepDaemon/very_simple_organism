@@ -5,30 +5,10 @@ from pygame import display
 import pymunk
 import colors
 import math
-
-# point from a circle given a circle radius and an angle
-def point_from_circle(radius, angle):
-    return (radius * math.cos(angle), radius * math.sin(angle))
-
-def get_triangle_vertices(radius, angle):
-    v1 = point_from_circle(radius, angle)
-    v2 = point_from_circle(radius, angle + (math.pi * 2.0 / 3.0))
-    v3 = point_from_circle(radius, angle + (math.pi * 4.0 / 3.0))
-    return [v1, v2, v3]
+from util import *
 
 
-
-def add_vec2tuple(v1, v2):
-    return (v1[0] + v2[0], v1[1] + v2[1])
-
-def make_square_tuple(size):
-    if type(size) is int:
-        return (size, size)
-    else:
-        return size
-
-
-
+# functions for creating pymunk physics objects
 def create_box(body, params):
     return pymunk.Poly.create_box(body, params)
 
@@ -40,6 +20,7 @@ def create_circle(body, radius):
     return pymunk.Circle(body, radius=radius)
 
 
+# game object definition
 class GameObject:
     
     def __init__(self, system, pos, size, col_type, color, static=False, shape_type='square', display_type=None):
