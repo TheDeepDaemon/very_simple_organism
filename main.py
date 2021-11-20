@@ -14,56 +14,8 @@ import image
 import cv2
 import matplotlib.pyplot as plt
 from create_gameobject import create_gameobject
+from constants import *
 
-
-AGENT_COLLISION_TYPE = 1
-MAZE_COLLISION_TYPE = 2
-GOAL_COLLISION_TYPE = 3
-
-SCREEN_WIDTH = 600
-SCREEN_HEIGHT = 600
-FPS = 60
-AGENT_SPEED = 10000 * 40
-AGENT_TURN_SPEED = 0.025
-AGENT_VIEW_SHAPE = (128, 128)
-MAZE_POSITION = (30, 30)
-MAZE_SIZE = 500
-
-RAW_MINIDISPLAY = False
-
-
-def grid_activation(x, size):
-    if int(x / size) % 2 == 0:
-        return 1.0
-    return 0.0
-
-def grid_activation_inv(x, size):
-    if int(x / size) % 2 == 1:
-        return 1.0
-    return 0.0
-
-def grid_position(pos, grid_x, grid_y, cell_size, maze_size):
-    x, y = pos
-    x_coord = x - grid_x
-    y_coord = y - grid_y
-    nodes = np.array([
-        grid_activation(x_coord, cell_size), 
-        grid_activation(y_coord, cell_size),
-        grid_activation(x_coord, maze_size / 8), 
-        grid_activation(y_coord, maze_size / 8),
-        grid_activation(x_coord, maze_size / 4), 
-        grid_activation(y_coord, maze_size / 4),
-        grid_activation(x_coord, maze_size / 2), 
-        grid_activation(y_coord, maze_size / 2),
-        grid_activation_inv(x_coord, cell_size), 
-        grid_activation_inv(y_coord, cell_size),
-        grid_activation_inv(x_coord, maze_size / 8), 
-        grid_activation_inv(y_coord, maze_size / 8),
-        grid_activation_inv(x_coord, maze_size / 4), 
-        grid_activation_inv(y_coord, maze_size / 4),
-        grid_activation_inv(x_coord, maze_size / 2), 
-        grid_activation_inv(y_coord, maze_size / 2),], dtype=np.float32)
-    return nodes
 
 
 class Game:
@@ -152,18 +104,11 @@ class Game:
                     draw_minidisplay(
                         self.display, cv2.resize(outputs_to_image(x), (128, 128)), 0, 0)
                 
-                # grid pos is shape (16,)
-                grid_pos = grid_position(
-                    agent.body.position, MAZE_POSITION[0], MAZE_POSITION[1], 
-                    self.maze_cell_size, MAZE_SIZE)
-                
                 # pos delta is the change in position
                 pos_delta = agent.body.position - pos_prev
                 
                 # feed input data
-                agent.brain.process_inputs(
-                    x, grid_activations=grid_pos, pos_delta=pos_delta)
-                
+                agent.brain.process_inputs(x, pos_delta=pos_delta)
                 
                 # create minidisplay for the nn model contents
                 y = agent.brain.reconstruct_internal_model(x)
@@ -175,12 +120,10 @@ class Game:
             except Exception as e:
                 print(e)
             
-            
             if left:
                 agent.body.angle += math.pi * AGENT_TURN_SPEED
             if right:
                 agent.body.angle -= math.pi * AGENT_TURN_SPEED
-            
             
             if forward:
                 agent.body.apply_impulse_at_local_point((AGENT_SPEED, 0), (0, 0))

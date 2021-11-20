@@ -1,6 +1,5 @@
 from operator import le
 import numpy as np
-from numpy.core.fromnumeric import reshape
 import tensorflow as tf
 import keras
 from keras import layers
@@ -8,24 +7,37 @@ from memory_buffer import MemoryBuffer
 import cppfunctions
 import grouping_data
 from neural_network_util import set_layer_weights
+from constants import *
 
 
-INPUT_SHAPE = (16, 16, 1)
-INPUT_SIZE = 1
-for dim in INPUT_SHAPE:
-    INPUT_SIZE *= dim
-NUM_ACTIONS = 3
+rotation = 0
 
-# the number of "memories" to use for training
-NUM_MEMORIES = 1000
+class Mapping(keras.layers.Layer):
+    
+    def __init__(self, units, input_dim, map_ref):
+        super(Mapping, self).__init__()
+        self.map = map_ref
+        w_init = tf.random_normal_initializer()
+        self.w = tf.Variable(
+            initial_value=w_init(shape=(input_dim, units), dtype="float32"),
+            trainable=True,
+        )
+        b_init = tf.zeros_initializer()
+        self.b = tf.Variable(
+            initial_value=b_init(shape=(units,), dtype="float32"), trainable=True
+        )
 
-# short term memory size.
-# this should be at least the number
-# of the highest derivative of motion
-# the network should be able to detect
-ST_MEM_SIZE = 4
-PREDICTION_FRAMES = 4
-
+    def call(self, inputs):
+        # transform to map shape
+        
+        
+        # embed in the map
+        
+        
+        # get the outputs
+        
+        
+        return tf.matmul(inputs, self.w) + self.b
 
 
 # agent brain, handles all info 
@@ -33,14 +45,21 @@ PREDICTION_FRAMES = 4
 class AgentBrain:
     
     def __init__(self):
-        self.memory = MemoryBuffer(NUM_MEMORIES, ST_MEM_SIZE, INPUT_SHAPE, 16)
+        self.memory = MemoryBuffer(NUM_MEMORIES, ST_MEM_SIZE, INPUT_SHAPE)
         self.eval_counter = 0
         self.last_frames = [np.zeros(shape=INPUT_SHAPE) for _ in range(PREDICTION_FRAMES)]
         self.weights_initted = False
-        self.internal_model = None
+        self.autoencoder = None
+        self.internal_map = np.zeros(shape=(), dtype=bool)
+        self.map_arr = np.zeros(shape=(MAP_SIZE, MAP_SIZE), dtype=np.int32)
     
     
+    # this function defines the autoencoder
+    # that acts as an model for perceiving
+    # the environment
     def construct_internal_model(self, initial_filters):
+        
+        latent_dim_filters = 4
         
         # encoder layers
         il = layers.Input(shape=INPUT_SHAPE)
@@ -53,13 +72,18 @@ class AgentBrain:
             activation='relu')(layer)
         
         # latent dimension
-        layer = layers.Dense(1, activation='relu')(layer)
+        layer = layers.Conv2D(
+            latent_dim_filters, (2, 2), strides=(2, 2),
+            activation='sigmoid')(layer)
         
         # store the encoder
         self.encoder = keras.Model(inputs=il, outputs=layer)
         
         # decoder layers
-        layer = layers.Dense(16, activation='relu')(layer)
+        # latent dimension
+        layer = layers.Conv2DTranspose(
+            latent_dim_filters, (2, 2), strides=(2, 2),
+            activation='relu')(layer)
         
         layer = layers.Conv2DTranspose(
             initial_filters, (4, 4), 
@@ -71,38 +95,20 @@ class AgentBrain:
             name='conv_out')(layer)
         
         # create the model
-        self.internal_model = keras.Model(inputs=il, outputs=layer)
+        self.autoencoder = keras.Model(inputs=il, outputs=layer)
         
         loss = keras.losses.MeanSquaredError(
             reduction=tf.compat.v1.losses.Reduction.NONE)
         
-        self.internal_model.compile(
+        self.autoencoder.compile(
             loss=loss, optimizer=keras.optimizers.RMSprop(
-                learning_rate=0.001))
-    
-    
-    def construct_grid_model(self):
-        im = self.encoder
-        im.trainable = False
+                learning_rate=0.005))
         
-        model = keras.Sequential()
-        model.add(im)
-        model.add(layers.Conv2D(16, (3, 3), activation='relu'))
-        model.add(layers.Flatten())
-        model.add(layers.Dense(16, activation='relu'))
-        
-        self.grid_model = model
-        
-        loss = keras.losses.MeanSquaredError(
-            reduction=tf.compat.v1.losses.Reduction.NONE)
-        
-        self.grid_model.compile(
-            loss=loss, 
-            optimizer=keras.optimizers.Adam(learning_rate=0.0001))
+        self.autoencoder.summary()
     
     
     def train_internal_model(
-        self, data, epochs=10, 
+        self, data, epochs=1, 
         batch_size=16, use_model_fit=False):
         
         if not use_model_fit:
@@ -112,45 +118,13 @@ class AgentBrain:
                 for i_ in range(num_batches):
                     i = i_ * batch_size
                     x = data[i:i+batch_size]
-                    self.internal_model.train_on_batch(x, x)
+                    self.autoencoder.train_on_batch(x, x)
                 end_i = num_batches * batch_size
                 if end_i < len(data):
                     x = data[end_i:]
-                    self.internal_model.train_on_batch(x, x)
+                    self.autoencoder.train_on_batch(x, x)
         else:
-            self.internal_model.fit(data, data, epochs=epochs)
-    
-    
-    def train_grid_model(
-        self, epochs=10, batch_size=16, 
-        use_model_fit=False):
-        
-        data = self.memory.memory
-        grid_data = self.memory.grid_memory
-        
-        permutation = np.arange(
-            start=0, stop=len(data), 
-            step=1, dtype=np.uint32)
-        
-        if not use_model_fit:
-            for _ in range(epochs):
-                
-                np.random.shuffle(permutation)
-                data = data[permutation]
-                grid_data = grid_data[permutation]
-                num_batches = int(len(data) / batch_size)
-                for i_ in range(num_batches):
-                    i = i_ * batch_size
-                    x = data[i:i+batch_size]
-                    y = grid_data[i:i+batch_size]
-                    self.grid_model.train_on_batch(x, y)
-                end_i = num_batches * batch_size
-                if end_i < len(data):
-                    x = data[end_i:]
-                    y = grid_data[end_i:]
-                    self.grid_model.train_on_batch(x, y)
-        else:
-            self.grid_model.fit(data, grid_data, epochs=epochs)
+            self.autoencoder.fit(data, data, epochs=epochs)
     
     
     def add_last_frame(self, inputs):
@@ -194,36 +168,33 @@ class AgentBrain:
                 weights = np.reshape(weights, newshape=(weights.shape[0], 4, 4))
                 
                 self.construct_internal_model(weights.shape[0] * 2)
-                self.construct_grid_model()
                 
-                set_layer_weights(self.internal_model, weights, 'layer1')
-                set_layer_weights(self.internal_model, weights, 'conv_out')
+                set_layer_weights(self.autoencoder, weights, 'layer1')
+                set_layer_weights(self.autoencoder, weights, 'conv_out')
                 
                 x = np.reshape(x, newshape=(*x.shape, 1))
                 
-                self.train_internal_model(x)
+                self.train_internal_model(x, epochs=3)
                 
                 return groups
     
     
-    def process_inputs(
-        self, inputs, grid_activations, pos_delta):
+    def process_inputs(self, inputs, pos_delta):
         
         if self.weights_initted is False:
             self.learn_groups(inputs)
             return None
         else:
-            hit_end = self.memory.insert_memory(inputs, grid_activations)
+            hit_end = self.memory.insert_memory(inputs)
             if hit_end:
                 x = cppfunctions.augment_data(self.memory.memory, 16, 16)
                 x = np.reshape(x, newshape=(*x.shape, 1))
                 self.train_internal_model(x)
-                self.train_grid_model()
     
     
     def reconstruct_internal_model(self, inputs):
-        if self.internal_model is not None:
-            return self.internal_model.predict(np.array([inputs]))[0]
+        if self.autoencoder is not None:
+            return self.autoencoder.predict(np.array([inputs]))[0]
     
     
     def predict_grid_position(self, inputs):
@@ -232,8 +203,8 @@ class AgentBrain:
     
     
     def save_model(self):
-        self.internal_model.save('internal_model')
+        self.autoencoder.save('internal_model')
     
     
     def load_model(self):
-        self.internal_model = keras.models.load_model('internal_model')
+        self.autoencoder = keras.models.load_model('internal_model')

@@ -176,6 +176,8 @@ def create_maze(game, maze_size, dim, x_pos=0, y_pos=0):
     game.maze_grid_size = dim
     
     rx, ry, xg, yg = random_maze_edge(dim, dim)
+    rx = 1
+    ry = -1
     edges[rx][ry] = False
     
     goal_x = x_pos + cell_size_half + (xg * cell_size)

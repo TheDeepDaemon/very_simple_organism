@@ -2,7 +2,15 @@
 # the functions are an interface for the C++ functions
 import ctypes
 from ctypes import CDLL
+from os import write
+from PIL.Image import new
 import numpy as np
+from tensorflow.python.keras.backend import dtype
+
+# easy reference to ctypes
+cfloat = ctypes.c_float
+cint64 = ctypes.c_int64
+cdouble = ctypes.c_double
 
 
 # generates 1 or 0 values
@@ -26,13 +34,13 @@ cpp_functions = CDLL(path)
 def get_nparr_ptr(np_arr):
     c_type = None
     if np_arr.dtype == np.float32:
-        c_type = ctypes.c_float
+        c_type = cfloat
     elif np_arr.dtype == np.float64:
-        c_type = ctypes.c_double
+        c_type = cdouble
     elif np_arr.dtype == np.int32:
         c_type = ctypes.c_int32
     elif np_arr.dtype == np.int64:
-        c_type = ctypes.c_int64
+        c_type = cint64
     elif np_arr.dtype == bool:
         c_type = ctypes.c_bool
     else:
@@ -44,7 +52,7 @@ def get_nparr_ptr(np_arr):
 # and a series of ints that store the shape
 # outputs as a tuple
 def get_nparr_args(np_arr):
-    shape = tuple([ctypes.c_int64(x) for x in np_arr.shape])
+    shape = tuple([cint64(x) for x in np_arr.shape])
     return (get_nparr_ptr(np_arr=np_arr), *shape)
 
 
@@ -115,7 +123,7 @@ def find_groups(data, iterations, power, inflation, max_num_groups=None):
         *get_nparr_args(data), 
         get_nparr_ptr(indices), max_num_groups,
         iterations,
-        ctypes.c_double(power), ctypes.c_double(inflation))
+        cdouble(power), cdouble(inflation))
     return get_indices_as_list(indices)
 
 
@@ -126,8 +134,8 @@ def remove_outliers(data):
     to_keep = np.zeros(data.shape[0], dtype=bool)
     cpp_functions.removeOutliers(
         get_nparr_ptr(data), 
-        ctypes.c_int64(data.shape[0]), 
-        ctypes.c_int64(data.shape[1]), 
+        cint64(data.shape[0]), 
+        cint64(data.shape[1]), 
         get_nparr_ptr(to_keep))
     new_data = []
     for i in range(len(data)):
@@ -143,7 +151,7 @@ def remove_similar(data):
     cpp_functions.removeSimilar(
         *get_nparr_args(data), 
         get_nparr_ptr(keep), 
-        ctypes.c_float(0.1))
+        cfloat(0.1))
     new_data = []
     for i in range(rows):
         if keep[i]:
@@ -152,25 +160,25 @@ def remove_similar(data):
 
 
 def scale_up(arr):
-    cpp_functions.scaleUp(get_nparr_ptr(arr), ctypes.c_int64(arr.size))
+    cpp_functions.scaleUp(get_nparr_ptr(arr), cint64(arr.size))
 
 
 def average_of_arrs(arrs):
     ave = np.zeros_like(arrs[0], dtype=np.float32)
     n = arrs.shape[0]
     arr_size = int(arrs.size / n)
-    cpp_functions.averageArr(get_nparr_ptr(arrs), ctypes.c_int64(n), ctypes.c_int64(arr_size), get_nparr_ptr(ave))
+    cpp_functions.averageArr(get_nparr_ptr(arrs), cint64(n), cint64(arr_size), get_nparr_ptr(ave))
     return ave
 
 
-cpp_functions.normalizedDotProd.restype = ctypes.c_float
+cpp_functions.normalizedDotProd.restype = cfloat
 def normalized_dot(arr1, arr2):
-    return cpp_functions.normalizedDotProd(get_nparr_ptr(arr1), get_nparr_ptr(arr2), ctypes.c_int64(3))
+    return cpp_functions.normalizedDotProd(get_nparr_ptr(arr1), get_nparr_ptr(arr2), cint64(3))
 
 
-cpp_functions.calcEntropy.restype = ctypes.c_float
+cpp_functions.calcEntropy.restype = cfloat
 def calc_entropy(arr):
-    return cpp_functions.calcEntropy(get_nparr_ptr(arr), ctypes.c_int64(arr.size))
+    return cpp_functions.calcEntropy(get_nparr_ptr(arr), cint64(arr.size))
 
 
 # takes a list of np arrays, returns the entropy of each
@@ -200,8 +208,8 @@ def augment_data(data, rows=None, cols=None):
         augmented = np.zeros(shape=(n_augmented, rows, cols), dtype=np.float32)
         
         cpp_functions.augmentData(
-            get_nparr_ptr(data), ctypes.c_int64(data.shape[0]), 
-            ctypes.c_int64(rows), ctypes.c_int64(cols), 
+            get_nparr_ptr(data), cint64(data.shape[0]), 
+            cint64(rows), cint64(cols), 
             get_nparr_ptr(augmented))
         return augmented
     else:
@@ -210,11 +218,33 @@ def augment_data(data, rows=None, cols=None):
 
 def create_weights(data):
     weights = np.copy(data)
-    vecSize = ctypes.c_int64(int(weights.size / weights.shape[0]))
+    vecSize = cint64(int(weights.size / weights.shape[0]))
     cpp_functions.getWeightValues(
         get_nparr_ptr(weights), 
-        ctypes.c_int64(weights.shape[0]), 
+        cint64(weights.shape[0]), 
         vecSize)
     return weights
+
+
+def write_to_window(window, buffer, angle, screenPos, agentPos):
+    pass
+
+
+rows = 4
+cols = 4
+arr = np.zeros(shape=(rows, cols, 2), dtype=np.int64)
+for i in range(rows):
+    for j in range(cols):
+        arr[i, j, 0] = i
+        arr[i, j, 1] = j
+
+angle = 3.14159 / 2.0
+
+cpp_functions.rotSamplingMatrix(get_nparr_ptr(arr), cint64(rows), cint64(cols), cdouble(angle))
+
+
+
+ones = np.ones(shape=(4, 4), dtype=np.float32)
+image = np.zeros(shape=(10, 10), dtype=np.float32)
 
 

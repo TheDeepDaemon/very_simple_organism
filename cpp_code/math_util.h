@@ -204,5 +204,12 @@ void toWeightValues(float* weightsPtr, int64 size) {
 }
 
 
+inline float& sampleMatrix(
+	float* dataPtr, const int64 i, const int64 j, 
+	const int64 k, const int64 cols, const int64 classes) {
+	return dataPtr[(i * cols * classes) + (j * classes) + k];
+}
+
+
 
 #endif

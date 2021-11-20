@@ -168,5 +168,38 @@ extern "C" {
     }
     
     
+    void rotSamplingMatrix(int64* indices, int64 rows, int64 cols, double angle) {
+        int64 size = rows * cols;
+        
+        double shiftX = (double)cols / 2.0;
+        double shiftY = (double)rows / 2.0;
+        
+        double r11 = cos(angle);
+        double r12 = -sin(angle);
+        double r21 = sin(angle);
+        double r22 = cos(angle);
+        
+        for (int64 i = 0; i < size; i++) {
+            const int64 i_ = i * 2;
+            const int64 ind1 = i_;
+            const int64 ind2 = i_ + 1;
+            
+            double x = indices[ind1];
+            double y = indices[ind2];
+            x -= shiftX;
+            y -= shiftY;
+            
+            double rotated1 = (x * r11) + (y * r12);
+            double rotated2 = (x * r21) + (y * r22);
+            
+            rotated1 += shiftX;
+            rotated2 += shiftY;
+            
+            indices[ind1] = round(rotated1);
+            indices[ind2] = round(rotated2);
+        }
+
+    }
+    
 }
 
