@@ -5,7 +5,9 @@ from ctypes import CDLL
 from os import write
 from PIL.Image import new
 import numpy as np
+from numpy.core.fromnumeric import reshape
 from tensorflow.python.keras.backend import dtype
+from tensorflow.python.ops.gen_math_ops import div
 
 # easy reference to ctypes
 cfloat = ctypes.c_float
@@ -190,8 +192,8 @@ def calc_groups_entropy(arrs):
 
 
 # augment data by adding entries 
-# that are rotated and scaled
-def augment_data(data, rows=None, cols=None):
+# that are flipped and rotated (fr)
+def augment_data_fr(data, rows=None, cols=None):
     if rows is None:
         rows = data.shape[1]
     if cols is None:
@@ -213,7 +215,7 @@ def augment_data(data, rows=None, cols=None):
             get_nparr_ptr(augmented))
         return augmented
     else:
-        print("Input to augment_data() is wrong shape.")
+        print("Input for augmenting data is wrong shape.")
 
 
 def create_weights(data):
@@ -226,25 +228,16 @@ def create_weights(data):
     return weights
 
 
-def write_to_window(window, buffer, angle, screenPos, agentPos):
-    pass
-
-
-rows = 4
-cols = 4
-arr = np.zeros(shape=(rows, cols, 2), dtype=np.int64)
-for i in range(rows):
-    for j in range(cols):
-        arr[i, j, 0] = i
-        arr[i, j, 1] = j
-
-angle = 3.14159 / 2.0
-
-cpp_functions.rotSamplingMatrix(get_nparr_ptr(arr), cint64(rows), cint64(cols), cdouble(angle))
-
-
-
-ones = np.ones(shape=(4, 4), dtype=np.float32)
-image = np.zeros(shape=(10, 10), dtype=np.float32)
+cpp_functions.inflectionPoint.restype = cint64
+def remove_low_norms(data):
+    # sort based on norm to remove blank data, 
+    # images that are all or mostly black will have low norms.
+    norms = np.linalg.norm(data, axis=1)
+    indices = np.argsort(norms)
+    sorted_norms = norms[indices]
+    args = get_nparr_args(sorted_norms)
+    ip = cpp_functions.inflectionPoint(*args)
+    ip = int(ip)
+    return data[indices[ip:]]
 
 

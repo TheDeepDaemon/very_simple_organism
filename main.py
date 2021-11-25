@@ -1,20 +1,22 @@
 import os
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1" # turns off access to GPU
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from types import new_class
 from PIL.Image import new
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+from numpy.core.fromnumeric import size
+from numpy.lib.type_check import real
 import pygame
 import pymunk
 from agent import Agent
 import numpy as np
-from display_funcs import *
+from display_util import *
 import colors
 from maze import create_maze
-import image
 import cv2
 import matplotlib.pyplot as plt
 from create_gameobject import create_gameobject
 from constants import *
+
 
 
 
@@ -28,12 +30,6 @@ class Game:
         self.clock = clock
         space.damping = 0.01
         self.starting_pos = (50, 550)
-    
-    
-    def reset_player_position(self, arbiter, space, data):
-        self.agent.body.position = self.starting_pos
-        self.agent.body.velocity = (0, 0)
-        return True
     
     
     def create_and_add_gameobject(self, x, y, width, height, color, collision_type=1, static=False):
@@ -52,9 +48,7 @@ class Game:
         left = False
         create_maze(self, maze_size=MAZE_SIZE, dim=10, x_pos=MAZE_POSITION[0], y_pos=MAZE_POSITION[1])
         
-        # set the flag to send the agent/player to the beginning
-        handler = self.space.add_collision_handler(AGENT_COLLISION_TYPE, GOAL_COLLISION_TYPE)
-        handler.begin = self.reset_player_position
+        paused = False
         
         # main loop
         while True:
@@ -68,8 +62,8 @@ class Game:
                         right = True
                     elif event.key == pygame.K_LEFT:
                         left = True
-                    elif event.key == pygame.K_q:
-                        print()
+                    elif event.key == pygame.K_p:
+                        paused = not paused
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP:
                         forward = False
@@ -78,60 +72,68 @@ class Game:
                     elif event.key == pygame.K_LEFT:
                         left = False
             
-            
-            # set camera position
-            cam_x = agent.body.position[0] - (SCREEN_WIDTH / 2)
-            cam_y = agent.body.position[1] - (SCREEN_HEIGHT / 2)
-            self.camera_pos = (cam_x, cam_y)
-            
-            # set the screen to black, then draw everything
-            self.display.fill(colors.BLACK)
-            [obj.draw() for obj in self.game_objects]
-            
-            # do all the AI stuff
-            try:
-                subimage = image.get_subimage(
-                    self.display, -agent.body.angle, 
-                    AGENT_VIEW_SHAPE, (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
-                subimage = np.array(subimage, dtype=np.float32) / 255.0
-                x = np.reshape(to_greyscale(subimage_to_inputs(subimage)), newshape=(16, 16, 1))
+            if not paused:
                 
-                # raw means the literal image patch that is used
-                # else means show the processed (shrunk) image
-                if RAW_MINIDISPLAY:
-                    draw_minidisplay(self.display, subimage, 0, 0)
-                else:
-                    draw_minidisplay(
-                        self.display, cv2.resize(outputs_to_image(x), (128, 128)), 0, 0)
+                # set camera position
+                cam_x = agent.body.position[0] - (SCREEN_WIDTH / 2)
+                cam_y = agent.body.position[1] - (SCREEN_HEIGHT / 2)
+                self.camera_pos = (cam_x, cam_y)
                 
-                # pos delta is the change in position
-                pos_delta = agent.body.position - pos_prev
+                # set the screen to black, then draw everything
+                self.display.fill(colors.BLACK)
+                [obj.draw() for obj in self.game_objects]
                 
-                # feed input data
-                agent.brain.process_inputs(x, pos_delta=pos_delta)
+                # do all the AI stuff
+                try:
+                    subimage, original_img = get_subimage(
+                        self.display, -agent.body.angle, 
+                        AGENT_VIEW_SHAPE, (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+                    subimage = np.array(subimage, dtype=np.float32) / 255.0
+                    img = np.reshape(to_greyscale(subimage_to_inputs(original_img)), newshape=(16, 16, 1))
+                    x = np.reshape(to_greyscale(subimage_to_inputs(subimage)), newshape=(16, 16, 1))
+                    
+                    # raw means the literal image patch that is used
+                    # else means show the processed (shrunk) image
+                    if RAW_MINIDISPLAY:
+                        draw_minidisplay(self.display, subimage, 0, 0)
+                    else:
+                        draw_minidisplay(
+                            self.display, cv2.resize(outputs_to_image(x), (128, 128)), 0, 0)
+                    
+                    # pos delta is the change in position
+                    pos_delta = agent.body.position - pos_prev
+                    
+                    # feed input data
+                    agent.brain.process_inputs(x, img, pos_delta)
+                    
+                    # create minidisplay for the nn model contents
+                    y = agent.brain.reconstruct_internal_model(x)
+                    if y is not None:
+                        y = outputs_to_image(y)
+                        y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
+                        draw_minidisplay(self.display, y, 128, 0)
+                    
+                    y = agent.brain.reconstruct_internal_model2(x)
+                    if y is not None:
+                        y = outputs_to_image(y)
+                        y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
+                        draw_minidisplay(self.display, y, 256, 0)
+                    
+                except Exception as e:
+                    print(e)
                 
-                # create minidisplay for the nn model contents
-                y = agent.brain.reconstruct_internal_model(x)
-                if y is not None:
-                    y = outputs_to_image(y)
-                    y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
-                    draw_minidisplay(self.display, y, 128, 0)
+                if left:
+                    agent.body.angle += math.pi * AGENT_TURN_SPEED
+                if right:
+                    agent.body.angle -= math.pi * AGENT_TURN_SPEED
                 
-            except Exception as e:
-                print(e)
-            
-            if left:
-                agent.body.angle += math.pi * AGENT_TURN_SPEED
-            if right:
-                agent.body.angle -= math.pi * AGENT_TURN_SPEED
-            
-            if forward:
-                agent.body.apply_impulse_at_local_point((AGENT_SPEED, 0), (0, 0))
-            
-            pos_prev = agent.body.position
-            pygame.display.update()
-            self.clock.tick(FPS)
-            self.space.step(1.0 / FPS)
+                if forward:
+                    agent.body.apply_impulse_at_local_point((AGENT_SPEED, 0), (0, 0))
+                
+                pos_prev = agent.body.position
+                pygame.display.update()
+                self.clock.tick(FPS)
+                self.space.step(1.0 / FPS)
 
 
 

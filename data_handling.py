@@ -2,6 +2,7 @@ from typing_extensions import final
 from numpy.testing._private.utils import _assert_valid_refcount
 import cppfunctions
 import numpy as np
+from scipy import ndimage
 
 
 # remove groups that have values further from 1 or 0
@@ -68,6 +69,35 @@ def find_absolute_groups(data, stop_at, split_size, markov_iterations, clusterin
             break
     return cppfunctions.remove_similar(groups)
 
+
+def augment_data(data, divisions=8, rows=None, cols=None):
+    new_list = []
+    for entry in data:
+        roof = divisions + 1
+        new_list.append(entry)
+        for i in range(divisions):
+            fraction = (i + 1) / roof
+            angle = fraction * 90.0
+            rot_img = ndimage.rotate(entry, angle, reshape=False)
+            new_list.append(rot_img)
+    data = cppfunctions.augment_data_fr(
+        np.array(new_list, dtype=np.float32), rows, cols)
+    return data
+
+
+def select_data(data, num_to_extract):
+    
+    # remove lower norms from data,
+    # intended to remove zeros
+    data = cppfunctions.remove_low_norms(data)
+    
+    # sort based on norm to find entries that are most
+    # likely to give good data
+    #indices = np.argsort(np.linalg.norm(data, axis=1))
+    #data = data[indices]
+    
+    sample = np.random.randint(0, len(data), size=num_to_extract)
+    return data[sample]
 
 
 # example:

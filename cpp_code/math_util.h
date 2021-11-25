@@ -211,5 +211,4 @@ inline float& sampleMatrix(
 }
 
 
-
 #endif

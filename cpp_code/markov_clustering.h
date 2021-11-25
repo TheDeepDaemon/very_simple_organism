@@ -50,11 +50,11 @@ bool allColsConverged(const emat& mat) {
 // an algorithm that multiplies a markov matrix by itself
 // and then raises the coefficients to a power, until they have converged
 // this is good for finding clusters in a graph
-emat markovClustering(emat mat, uint64_t maxIterations, double power, double inflation) {
+emat markovClustering(emat mat, uint64 maxIterations, double power, double inflation) {
 
 	emat lastMat = mat; // matrix at last iteration
 
-	for (uint64_t i = 0; i < maxIterations; i++) {
+	for (uint64 i = 0; i < maxIterations; i++) {
 		// power
 		mat = pow(mat, power);
 
@@ -83,7 +83,7 @@ emat markovClustering(emat mat, uint64_t maxIterations, double power, double inf
 
 
 // find groupings in the data, which is given as a matrix
-vector<set<int64>> groupData(const emat& data, uint64_t iterations, double power, double inflation) {
+vector<set<int64>> groupData(const emat& data, uint64 iterations, double power, double inflation) {
 	
 	emat clusteredData = markovClustering(dataRelationships(data), iterations, power, inflation);
 

@@ -60,7 +60,7 @@ void augmentData(float* dataPtr,
 	float* augmentedDataPtr) {
 
 	// if the 90 degree rotations are taken out,
-	// the new size isn't going to be as big
+	// the new size is 4 instead of 6
 	const int64 augmentedSize = square ? 6 : 4;
 
 	// store the full size of each section

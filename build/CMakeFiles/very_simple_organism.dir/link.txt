@@ -1,0 +1,2 @@
+C:\MinGW64\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin\ar.exe qc libvery_simple_organism.a  CMakeFiles/very_simple_organism.dir/very_simple_organism.cpp.obj
+C:\MinGW64\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin\ranlib.exe libvery_simple_organism.a
