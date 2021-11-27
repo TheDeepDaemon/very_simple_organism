@@ -106,13 +106,17 @@ class Game:
                     # feed input data
                     agent.brain.process_inputs(x, img, pos_delta)
                     
+                    
                     # create minidisplay for the nn model contents
+                    
+                    # with clustering
                     y = agent.brain.reconstruct_internal_model(x)
                     if y is not None:
                         y = outputs_to_image(y)
                         y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
                         draw_minidisplay(self.display, y, 128, 0)
                     
+                    # without clustering
                     y = agent.brain.reconstruct_internal_model2(x)
                     if y is not None:
                         y = outputs_to_image(y)

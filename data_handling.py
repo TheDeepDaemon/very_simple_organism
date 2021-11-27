@@ -1,4 +1,6 @@
+from contextlib import suppress
 from typing_extensions import final
+from PIL.Image import new
 from numpy.testing._private.utils import _assert_valid_refcount
 import cppfunctions
 import numpy as np
@@ -80,23 +82,16 @@ def augment_data(data, divisions=8, rows=None, cols=None):
             angle = fraction * 90.0
             rot_img = ndimage.rotate(entry, angle, reshape=False)
             new_list.append(rot_img)
-    data = cppfunctions.augment_data_fr(
-        np.array(new_list, dtype=np.float32), rows, cols)
+    new_list = np.array(new_list, dtype=np.float32)
+    cppfunctions.apply_sigmoid(new_list)
+    data = cppfunctions.augment_data_fr(new_list, rows, cols)
     return data
 
 
 def select_data(data, num_to_extract):
-    
-    # remove lower norms from data,
-    # intended to remove zeros
     data = cppfunctions.remove_low_norms(data)
-    
-    # sort based on norm to find entries that are most
-    # likely to give good data
-    #indices = np.argsort(np.linalg.norm(data, axis=1))
-    #data = data[indices]
-    
-    sample = np.random.randint(0, len(data), size=num_to_extract)
+    sample_size = min(num_to_extract, len(data))
+    sample = np.random.randint(0, len(data), size=sample_size)
     return data[sample]
 
 

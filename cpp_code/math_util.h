@@ -28,20 +28,36 @@ set<T> unifySets(const set<T>& set1, const set<T>& set2) {
 }
 
 
-// find differences between every pair
-// of vector entries that are 
-// next to each other
+// find dx / di
+// or changes in x
 evec derivatives(const evec& vec) {
     evec dx(vec.size() - 1);
     dx.setZero();
 
     for (int i = 1; i < vec.size(); i++) {
-        int im1 = i - 1;
-        dx[im1] = vec[i] - vec[im1];
+        int iLast = i - 1;
+        dx[iLast] = vec[i] - vec[iLast];
     }
 
     return dx;
 }
+
+
+// change in proportion to the previous
+evec percentChanges(const evec& vec) {
+    evec dx(vec.size() - 1);
+    dx.setZero();
+
+    for (int i = 1; i < vec.size(); i++) {
+        int iLast = i - 1;
+        dx[iLast] = (vec[i] - vec[iLast]) / vec[iLast];
+    }
+
+    return dx;
+}
+
+
+
 
 
 // multiply the matrix by itself a certain number of times,

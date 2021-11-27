@@ -1,7 +1,7 @@
 from constants import *
 import numpy as np
 import cv2
-from display_funcs import *
+from display_util import *
 import colors
 
 

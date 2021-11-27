@@ -9,6 +9,7 @@ from numpy.core.fromnumeric import reshape
 from tensorflow.python.keras.backend import dtype
 from tensorflow.python.ops.gen_math_ops import div
 
+
 # easy reference to ctypes
 cfloat = ctypes.c_float
 cint64 = ctypes.c_int64
@@ -228,16 +229,14 @@ def create_weights(data):
     return weights
 
 
-cpp_functions.inflectionPoint.restype = cint64
+cpp_functions.findCutoff.restype = cint64
 def remove_low_norms(data):
     # sort based on norm to remove blank data, 
     # images that are all or mostly black will have low norms.
     norms = np.linalg.norm(data, axis=1)
     indices = np.argsort(norms)
     sorted_norms = norms[indices]
-    args = get_nparr_args(sorted_norms)
-    ip = cpp_functions.inflectionPoint(*args)
-    ip = int(ip)
-    return data[indices[ip:]]
-
+    cutoff = cpp_functions.findCutoff(get_nparr_ptr(sorted_norms), cint64(sorted_norms.size))
+    print("cutoff: ", cutoff / float(len(data)))
+    return data[indices[cutoff:]]
 

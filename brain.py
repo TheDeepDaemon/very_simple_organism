@@ -84,7 +84,7 @@ class AgentBrain:
         
         self.autoencoder2.compile(loss=loss, optimizer=optimizer)
         
-        
+        '''
         il = keras.layers.Input(shape=(8, 8, 1))
         
         layer = layers.Conv2D(
@@ -97,7 +97,7 @@ class AgentBrain:
             activation='sigmoid')(layer)
         
         self.map_encoder = Model(inputs=il, outputs=layer)
-        self.map_encoder.compile()
+        self.map_encoder.compile()'''
     
     
     def set_mapping_kernel(self):
@@ -162,7 +162,7 @@ class AgentBrain:
                 self.construct_autoencoder(100)
                 
                 set_layer_weights(self.autoencoder, weights, 'layer1')
-                set_layer_weights(self.autoencoder, weights, 'conv_out')
+                #set_layer_weights(self.autoencoder, weights, 'conv_out')
                 
                 x = np.reshape(x, newshape=(*x.shape, 1))
                 

@@ -26,7 +26,7 @@ for dim in INPUT_SHAPE:
 NUM_ACTIONS = 3
 
 # the number of "memories" to use for training
-NUM_MEMORIES = 50
+NUM_MEMORIES = 500
 
 # short term memory size.
 # this should be at least the number
