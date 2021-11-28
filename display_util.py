@@ -6,6 +6,7 @@ import numpy as np
 from numpy.lib.function_base import angle
 from pygame.transform import rotate
 from scipy import ndimage
+from tensorflow.core.protobuf.meta_graph_pb2 import AssetFileDef
 
 
 
@@ -100,13 +101,26 @@ def convert3dto1d(arr):
     return new_arr
 
 
+# add_up x and y are to let you know how much to add to the position
 def position_to_grid(pos, cell_size):
-    x = int(pos[0] / cell_size)
-    y = int(pos[1] / cell_size)
-    return x, y
+    x = int(math.ceil(pos[0] / cell_size))
+    y = int(math.ceil(pos[1] / cell_size))
+    add_up_x = int((x * cell_size) - pos[0])
+    add_up_y = int((y * cell_size) - pos[1])
+    return x, y, add_up_x, add_up_y
 
 
 def add_tuple(tuple1, tuple2):
     return (tuple1[0] + tuple2[0], tuple1[1] + tuple2[1])
 
+
+def subtract_tuple(tuple1, tuple2):
+    return (tuple1[0] - tuple2[0], tuple1[1] - tuple2[1])
+
+
+def calc_view_position(pos, angle, view_size):
+    relative_pos = (
+        math.cos(angle) * view_size, 
+        math.sin(angle) * view_size)
+    return add_tuple(pos, relative_pos)
 

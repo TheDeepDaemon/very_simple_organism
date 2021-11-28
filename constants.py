@@ -11,7 +11,8 @@ SCREEN_HEIGHT = 600
 FPS = 60
 AGENT_SPEED = 10000 * 40
 AGENT_TURN_SPEED = 0.025
-AGENT_VIEW_SHAPE = (128, 128)
+AGENT_VIEW_SIZE = 128
+AGENT_VIEW_SHAPE = (AGENT_VIEW_SIZE, AGENT_VIEW_SIZE)
 MAZE_POSITION = (30, 30)
 MAZE_SIZE = 500
 
@@ -26,7 +27,7 @@ for dim in INPUT_SHAPE:
 NUM_ACTIONS = 3
 
 # the number of "memories" to use for training
-NUM_MEMORIES = 500
+NUM_MEMORIES = 50
 
 # short term memory size.
 # this should be at least the number

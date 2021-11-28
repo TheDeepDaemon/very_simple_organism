@@ -1,4 +1,7 @@
+from math import remainder
 import os
+
+from PIL.Image import init, new
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from operator import le
 import numpy as np
@@ -18,23 +21,34 @@ from keras import Model
 
 
 
+
+
 # agent brain, handles all info 
 # processing and decision making.
 class AgentBrain:
     
     def __init__(self):
         self.memory = MemoryBuffer(NUM_MEMORIES, ST_MEM_SIZE, INPUT_SHAPE)
-        self.eval_counter = 0
         self.last_frames = [np.zeros(shape=INPUT_SHAPE) for _ in range(PREDICTION_FRAMES)]
+        
+        # init variables to be changed later during runtime
         self.weights_initted = False
         self.autoencoder = None
         self.autoencoder2 = None
-        self.map_encoder = None
+        self.encoder = None
+        self.decoder = None
+        self.initial_filters = None
+        
+        # init storage and variables
         self.latent_classes = 12
-        self.internal_map = np.zeros(shape=(MAP_SIZE, MAP_SIZE, self.latent_classes), dtype=bool)
-        self.map_tracker = np.zeros(shape=(MAP_SIZE, MAP_SIZE))
+        
+        self.internal_map = \
+            np.zeros(
+                shape=(MAP_SIZE, MAP_SIZE, self.latent_classes), 
+                dtype=bool)
+        
         self.position = (0, 0)
-        self.map_size = MAP_SIZE
+        
         center = int(MAP_SIZE / 2)
         self.map_center = (center, center)
     
@@ -44,60 +58,68 @@ class AgentBrain:
     # the environment
     def construct_autoencoder(self, initial_filters):
         
+        self.initial_filters = initial_filters
+        
+        autoencoder = keras.Sequential()
+        encoder = keras.Sequential()
+        decoder = keras.Sequential()
+        
         # encoder layers
-        il = layers.Input(shape=INPUT_SHAPE)
+        autoencoder_input = layers.Input(shape=INPUT_SHAPE)
+        encoder_input = layers.Input(shape=(8, 8, 1))
+        autoencoder.add(autoencoder_input)
+        encoder.add(encoder_input)
+        
+        
         layer = layers.Conv2D(
             initial_filters, (4, 4), strides=(4, 4),
             activation='relu', 
-            name='layer1')(il)
+            name='layer1')
+        autoencoder.add(layer)
+        encoder.add(layer)
         
-        # compress into latent dimension
+        
+        # latent dimension
         layer = layers.Conv2D(
             self.latent_classes, (2, 2), strides=(2, 2),
-            activation='sigmoid')(layer)
+            activation='sigmoid')
+        autoencoder.add(layer)
+        encoder.add(layer)
         
-        # just the encoder
-        self.encoder = Model(inputs=il, outputs=layer)
         
         # decoder layers
+        decoder_input = keras.layers.Input(shape=self.internal_map.shape)
+        decoder.add(decoder_input)
+        
         layer = layers.Conv2DTranspose(
             initial_filters, (2, 2),  strides=(2, 2),
-            activation='relu')(layer)
+            activation='relu',
+            name='conv_transpose1')
+        autoencoder.add(layer)
+        decoder.add(layer)
+        
         
         layer = layers.Conv2DTranspose(
             1, (4, 4), strides=(4, 4),
             activation='sigmoid', 
-            name='conv_out')(layer)
+            name='conv_out')
+        autoencoder.add(layer)
+        decoder.add(layer)
         
-        
-        # create the model
-        self.autoencoder = Model(inputs=il, outputs=layer)
-        
+        self.autoencoder = autoencoder
         self.autoencoder2 = keras.models.clone_model(self.autoencoder)
+        self.encoder = encoder
+        self.decoder = decoder
         
+        
+        # compile it
         optimizer = keras.optimizers.RMSprop(learning_rate=0.01)
-        
-        #loss = 'binary_crossentropy'
         loss = 'mean_squared_error'
-        
         self.autoencoder.compile(loss=loss, optimizer=optimizer)
-        
         self.autoencoder2.compile(loss=loss, optimizer=optimizer)
         
-        '''
-        il = keras.layers.Input(shape=(8, 8, 1))
-        
-        layer = layers.Conv2D(
-            initial_filters, (4, 4), strides=(4, 4),
-            activation='relu', 
-            name='layer1')(il)
-        
-        layer = layers.Conv2D(
-            self.latent_classes, (2, 2), strides=(2, 2),
-            activation='sigmoid')(layer)
-        
-        self.map_encoder = Model(inputs=il, outputs=layer)
-        self.map_encoder.compile()'''
+        self.encoder.compile()
+        self.decoder.compile()
     
     
     def set_mapping_kernel(self):
@@ -162,7 +184,6 @@ class AgentBrain:
                 self.construct_autoencoder(100)
                 
                 set_layer_weights(self.autoencoder, weights, 'layer1')
-                #set_layer_weights(self.autoencoder, weights, 'conv_out')
                 
                 x = np.reshape(x, newshape=(*x.shape, 1))
                 
@@ -171,10 +192,23 @@ class AgentBrain:
                 return groups
     
     
-    def build_map(self, img, map_row, map_col):
-        x = img[:8,:8]
-        latent_vals = self.feed_map(x)
-        self.internal_map[map_row, map_col] = latent_vals
+    def build_map(self, img):
+        # how the real size translates to internal map size:
+        # literal -> compressed input -> latent
+        # 32x32, to NN input -> 4x4, through encoder -> 1x1
+        # therfore, a 32x32 section on the screen is
+        # described by a 1x1 cell of the grid.
+        map_cell_size = 32
+        
+        map_x, map_y, adj_x, adj_y = position_to_grid(self.position, map_cell_size)
+        map_x, map_y = add_tuple(self.map_center, (map_x, map_y))
+        
+        i = int(adj_x / 8)
+        j = int(adj_y / 8)
+        x = img[i:i+8, j:j+8]
+        latent_vals = self.feed_encoder(x)
+        print(latent_vals.shape)
+        self.internal_map[map_x, map_y] = latent_vals
         return latent_vals is not None
     
     
@@ -191,18 +225,7 @@ class AgentBrain:
         if self.weights_initted is False:
             self.learn_groups(inputs)
         else:
-            
-            # how the real size translates to internal map size:
-            # literal -> compressed input -> latent
-            # 32x32, to NN input -> 4x4, through encoder -> 1x1
-            # therfore, a 32x32 section on the screen is
-            # described by a 1x1 cell of the grid.
-            map_cell_size = 32
-            
-            map_col, map_row = position_to_grid(self.position, map_cell_size)
-            map_col, map_row = add_tuple(self.map_center, (map_col, map_row))
-            
-            self.build_map(img, map_row, map_col)
+            self.build_map(img)
             self.input_autoencoder(inputs)
     
     
@@ -216,9 +239,16 @@ class AgentBrain:
             return self.autoencoder2.predict(np.array([inputs]))[0]
     
     
-    def feed_map(self, inputs):
-        if self.map_encoder is not None:
-            return self.map_encoder.predict(np.array([inputs]))[0]
+    def feed_encoder(self, inputs):
+        if self.encoder is not None:
+            return self.encoder.predict(np.array([inputs]))[0]
+    
+    
+    def read_map(self):
+        inputs = np.array([self.internal_map], dtype=np.float32)
+        outputs = self.decoder.predict(inputs)
+        return outputs[0]
+        
     
     
     def save_model(self):

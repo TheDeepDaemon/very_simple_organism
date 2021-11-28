@@ -19,7 +19,6 @@ from constants import *
 
 
 
-
 class Game:
     
     def __init__(self, display, space, clock):
@@ -42,7 +41,8 @@ class Game:
         agent = Agent(self, self.starting_pos, 12, AGENT_COLLISION_TYPE)
         self.agent = agent
         self.game_objects.append(agent)
-        pos_prev = agent.body.position
+        view_pos_prev = calc_view_position(
+            agent.body.position, agent.body.angle, AGENT_VIEW_SIZE)
         forward = False
         right = False
         left = False
@@ -64,6 +64,9 @@ class Game:
                         left = True
                     elif event.key == pygame.K_p:
                         paused = not paused
+                    elif event.key == pygame.K_o:
+                        m = agent.brain.read_map()
+                        print(m.shape)
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP:
                         forward = False
@@ -101,7 +104,9 @@ class Game:
                             self.display, cv2.resize(outputs_to_image(x), (128, 128)), 0, 0)
                     
                     # pos delta is the change in position
-                    pos_delta = agent.body.position - pos_prev
+                    view_pos = calc_view_position(
+                        agent.body.position, agent.body.angle, AGENT_VIEW_SIZE)
+                    pos_delta = subtract_tuple(view_pos, view_pos_prev)
                     
                     # feed input data
                     agent.brain.process_inputs(x, img, pos_delta)
@@ -134,7 +139,9 @@ class Game:
                 if forward:
                     agent.body.apply_impulse_at_local_point((AGENT_SPEED, 0), (0, 0))
                 
-                pos_prev = agent.body.position
+                
+                
+                view_pos_prev = view_pos
                 pygame.display.update()
                 self.clock.tick(FPS)
                 self.space.step(1.0 / FPS)
