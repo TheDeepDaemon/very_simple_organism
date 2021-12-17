@@ -17,6 +17,7 @@ extern "C" {
         }
     }
     
+    
     // takes images and extracts patches from them, 
     // stores the patches as rows in a matrix
     void imagesToMatrix(float* destination, float* srcImgPtr, size_t numEntries, 
@@ -57,6 +58,7 @@ extern "C" {
         }
     }
     
+    
     // find groups, output a indices that represent members of each group
     void findGroups(
         float* dataPtr, int64 rows, int64 cols, 
@@ -77,6 +79,7 @@ extern "C" {
         
     }
     
+    
     // remove rows that do not fit in the cluster
     void removeOutliers(float* dataPtr, int64 rows, int64 cols, bool* keep) {
         Eigen::Map<dmat> data(dataPtr, rows, cols);
@@ -88,6 +91,7 @@ extern "C" {
         }
         
     }
+    
     
     // remove things that are sufficiently similar.
     // indicate the result using an array of bools called "keep";
@@ -111,12 +115,14 @@ extern "C" {
         
     }
     
+    
     // scale all values so that the largest value is 1.0
     void scaleUp(float* dataPtr, int64 size) {
         Eigen::Map<evec> data(dataPtr, size);
         float maxVal = data.maxCoeff();
         data *= (1.0f / maxVal);
     }
+    
     
     // get an average of a series of numpy arrays
     void averageArr(float* dataPtr, int64 n, int64 arrSize, float* outputAvePtr) {
@@ -131,6 +137,7 @@ extern "C" {
         ave /= (double)data.rows();
     }
     
+    
     // normalized dot product: how much do these vectors 
     // point in the same direction?
     float normalizedDotProd(float* arrPtr1, float* arrPtr2, int64 size) {
@@ -140,10 +147,12 @@ extern "C" {
         return ndp;
     }
     
+    
     // calculate how close the values are to 0.5
     float calcEntropy(float* arrPtr, int64 size) {
         return calcEntropy(Eigen::Map<evec>(arrPtr, size));
     }
+    
     
     // augment the data so that there is new data that is rotated and flipped
     void augmentData(float* dataPtr, 
@@ -158,16 +167,7 @@ extern "C" {
     }
     
     
-    // this function is here to convert the patterns collected into 
-    // the values that the weights should be
-    void getWeightValues(float* dataPtr, int64 n, int64 vecSize) {
-        for (int64 i = 0; i < n; i++) {
-            float* dataLoc = dataPtr + (i * vecSize);
-            toWeightValues(dataLoc, vecSize);
-        }
-    }
-    
-    
+    // find above or below average cutoff
     int64 findCutoff(float* data, int64 size) {
         float ave = 0;
         for (int64 i = 0; i < size; i++) {
@@ -181,6 +181,64 @@ extern "C" {
             }
         }
         return size;
+    }
+    
+    
+    void centerData(float* dataPtr, int64 size) {
+        float ave = 0;
+        for (int64 i = 0; i < size; i++) {
+            ave += dataPtr[i];
+        }
+        ave /= float(size);
+        for (int64 i = 0; i < size; i++) {
+            dataPtr[i] -= ave;
+        }
+    }
+    
+    
+    void rowToWeights(float* dataPtr, int64 size) {
+        
+        float posSum = 0.0f;
+        float negSum = 0.0f;
+
+        for (int64 i = 0; i < size; i++) {
+            float num = dataPtr[i];
+            if (num > 0) {
+                posSum += num;
+            }
+            else {
+                negSum -= num;
+            }
+        }
+
+        if (posSum == 0.0f) {
+            posSum = 1.0f;
+        }
+        if (negSum == 0.0f) {
+            negSum = 1.0f;
+        }
+        
+        for (int64 i = 0; i < size; i++) {
+            if (dataPtr[i] > 0) {
+                dataPtr[i] /= posSum;
+            }
+            else {
+                dataPtr[i] /= negSum;
+            }
+        }
+        
+    }
+    
+    
+    // this function is here to convert the patterns collected into 
+    // the values of the weights.
+    // the dot product with a vector of ones should be zero
+    void toWeights(float* dataPtr, int64 size, int64 rowSize) {
+        for (int64 i = 0; i < size; i++) {
+            float* data = dataPtr + (i * rowSize);
+            centerData(data, rowSize);
+            rowToWeights(data, rowSize);
+        }
     }
     
 }

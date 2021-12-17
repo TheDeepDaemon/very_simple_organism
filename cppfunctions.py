@@ -2,12 +2,7 @@
 # the functions are an interface for the C++ functions
 import ctypes
 from ctypes import CDLL
-from os import write
-from PIL.Image import new
 import numpy as np
-from numpy.core.fromnumeric import reshape
-from tensorflow.python.keras.backend import dtype
-from tensorflow.python.ops.gen_math_ops import div
 
 
 # easy reference to ctypes
@@ -16,18 +11,7 @@ cint64 = ctypes.c_int64
 cdouble = ctypes.c_double
 
 
-# generates 1 or 0 values
-# in the shape of a matrix.
-# used for testing and debugging.
-def generate_random_data(rows, cols):
-    offset = np.reshape(np.random.standard_normal(rows * cols), newshape=(rows, cols)) * 0.1
-    data = np.zeros(shape=(rows, cols), dtype=np.float32)
-    for i in range(len(data)):
-        r = np.random.randint(0, cols)
-        data[i][r] = 1.0
-        data[i][r-1] = 1.0
-    data += offset
-    return data
+
 
 
 cpp_code_dir = '..\\bin\\'
@@ -67,7 +51,8 @@ def images_to_matrix(imgs, wCols, wRows):
     row_size = wCols * wRows
     mat = np.zeros(shape=(imgs.shape[0] * jn * kn, row_size), dtype=np.float32)
     if len(imgs.shape) == 3: # make sure it has a valid shape
-        cpp_functions.imagesToMatrix(get_nparr_ptr(mat), *get_nparr_args(imgs), wCols, wRows)
+        args = (get_nparr_ptr(mat), *get_nparr_args(imgs), wCols, wRows)
+        cpp_functions.imagesToMatrix(*args)
     return mat
 
 
@@ -105,7 +90,8 @@ def get_indices_as_list(indices):
 
 # apply a sigmoid to all elements of an array
 def apply_sigmoid(np_arr):
-    cpp_functions.applySigmoid(get_nparr_ptr(np_arr), ctypes.c_uint64(np_arr.size))
+    args = get_nparr_ptr(np_arr), ctypes.c_uint64(np_arr.size)
+    cpp_functions.applySigmoid(*args)
 
 
 # find the groups in the data by converting the relationships
@@ -162,26 +148,37 @@ def remove_similar(data):
     return new_data
 
 
+# scales the data so the largest value is 1.0
 def scale_up(arr):
     cpp_functions.scaleUp(get_nparr_ptr(arr), cint64(arr.size))
 
 
+# average multiple arrays
+# return the average of each in a 1d array
 def average_of_arrs(arrs):
     ave = np.zeros_like(arrs[0], dtype=np.float32)
     n = arrs.shape[0]
     arr_size = int(arrs.size / n)
-    cpp_functions.averageArr(get_nparr_ptr(arrs), cint64(n), cint64(arr_size), get_nparr_ptr(ave))
+    args = get_nparr_ptr(arrs), cint64(n), cint64(arr_size), get_nparr_ptr(ave)
+    cpp_functions.averageArr(*args)
     return ave
 
 
+# get what the dot product of two vectors would be if they were normalized
+# tells how similar they are in the direction they point
 cpp_functions.normalizedDotProd.restype = cfloat
 def normalized_dot(arr1, arr2):
-    return cpp_functions.normalizedDotProd(get_nparr_ptr(arr1), get_nparr_ptr(arr2), cint64(3))
+    args = get_nparr_ptr(arr1), get_nparr_ptr(arr2), cint64(3)
+    return cpp_functions.normalizedDotProd(*args)
 
 
+# calculate the entropy of the vector,
+# a measure of how many vector values
+# are close to 0 or 1
 cpp_functions.calcEntropy.restype = cfloat
 def calc_entropy(arr):
-    return cpp_functions.calcEntropy(get_nparr_ptr(arr), cint64(arr.size))
+    args = get_nparr_ptr(arr), cint64(arr.size)
+    return cpp_functions.calcEntropy(*args)
 
 
 # takes a list of np arrays, returns the entropy of each
@@ -219,13 +216,13 @@ def augment_data_fr(data, rows=None, cols=None):
         print("Input for augmenting data is wrong shape.")
 
 
+# takes patterns found in the data and outputs
+# the values to set the weights to
 def create_weights(data):
     weights = np.copy(data)
     vecSize = cint64(int(weights.size / weights.shape[0]))
-    cpp_functions.getWeightValues(
-        get_nparr_ptr(weights), 
-        cint64(weights.shape[0]), 
-        vecSize)
+    args = get_nparr_ptr(weights), cint64(weights.shape[0]), vecSize
+    cpp_functions.toWeights(*args)
     return weights
 
 
@@ -236,7 +233,8 @@ def remove_low_norms(data):
     norms = np.linalg.norm(data, axis=1)
     indices = np.argsort(norms)
     sorted_norms = norms[indices]
-    cutoff = cpp_functions.findCutoff(get_nparr_ptr(sorted_norms), cint64(sorted_norms.size))
+    args = get_nparr_ptr(sorted_norms), cint64(sorted_norms.size)
+    cutoff = cpp_functions.findCutoff(*args)
     print("cutoff: ", cutoff / float(len(data)))
     return data[indices[cutoff:]]
 

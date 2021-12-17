@@ -1,6 +1,7 @@
 import numpy as np
 import keras
 
+
 def add_rows_to_dense(model, weights_index, rows):
     '''modify weights of a keras model to add these rows'''
     mats = model.get_weights()
@@ -16,14 +17,18 @@ def add_rows_to_dense(model, weights_index, rows):
 
 
 
+# replace the kernel of a conv2d layer
 def replace_kernel(weights, kernel, filter_index, channel_index=None):
-    for i in range(len(kernel)):
-        for j in range(len(kernel[i])):
+    shape = kernel.shape
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            
+            # if there are numtiple input channels
             if channel_index is None:
                 for c in range(len(weights[0][i][j])):
-                    weights[0][i][j][c][filter_index] = kernel[i][j]
+                    weights[0][i, j, c, filter_index] = kernel[i, j]
             else:
-                weights[0][i][j][channel_index][filter_index] = kernel[i][j]
+                weights[0][i, j, channel_index, filter_index] = kernel[i, j]
 
 
 def set_layer_weights(model, kernels, layer_name):

@@ -50,14 +50,14 @@ bool allColsConverged(const emat& mat) {
 // an algorithm that multiplies a markov matrix by itself
 // and then raises the coefficients to a power, until they have converged
 // this is good for finding clusters in a graph
-emat markovClustering(emat mat, uint64 maxIterations, double power, double inflation) {
-
+emat markovClustering(emat mat, uint64 maxIterations, double expansion, double inflation) {
+	
 	emat lastMat = mat; // matrix at last iteration
-
+	
 	for (uint64 i = 0; i < maxIterations; i++) {
-		// power
-		mat = pow(mat, power);
-
+		// expansion
+		mat = pow(mat, expansion);
+		
 		// inflation
 		cwisePow(mat, inflation);
 		
@@ -83,10 +83,12 @@ emat markovClustering(emat mat, uint64 maxIterations, double power, double infla
 
 
 // find groupings in the data, which is given as a matrix
-vector<set<int64>> groupData(const emat& data, uint64 iterations, double power, double inflation) {
+vector<set<int64>> groupData(const emat& data, uint64 iterations, double expansion, double inflation) {
 	
-	emat clusteredData = markovClustering(dataRelationships(data), iterations, power, inflation);
-
+	emat clusteredData = markovClustering(dataRelationships(data), iterations, expansion, inflation);
+	
+	// go through and set values that are close to zero
+	// to zero, this prevents some ambiguity
 	for (int64 i = 0; i < clusteredData.rows(); i++) {
 		for (int64 j = 0; j < clusteredData.cols(); j++) {
 			if (abs(clusteredData(i, j)) < 0.0001) {
@@ -94,9 +96,9 @@ vector<set<int64>> groupData(const emat& data, uint64 iterations, double power, 
 			}
 		}
 	}
-
+	
 	vector<set<int64>> groups(clusteredData.cols());
-
+	
 	for (int64 i = 0; i < clusteredData.cols(); i++) {
 		double maxColVal = 0.0;
 
@@ -122,7 +124,7 @@ vector<set<int64>> groupData(const emat& data, uint64 iterations, double power, 
 			}
 		}
 	}
-
+	
 	vector<bool> merged(groups.size(), false);
 	
 	// keep going until there are no more things to merge
@@ -146,15 +148,15 @@ vector<set<int64>> groupData(const emat& data, uint64 iterations, double power, 
 			}
 		}
 	}
-
+	
 	vector<set<int64>> finalGroups;
-
+	
 	for (size_t i = 0; i < groups.size(); i++) {
 		if (!merged[i]) {
 			finalGroups.push_back(groups[i]);
 		}
 	}
-
+	
 	return finalGroups;
 }
 

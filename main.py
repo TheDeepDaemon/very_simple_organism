@@ -18,6 +18,17 @@ from create_gameobject import create_gameobject
 from constants import *
 
 
+def draw_agent_map(display, agent):
+    map_img = agent.brain.read_map()
+    
+    if map_img is not None:
+        img = cv2.resize(
+            convert1dto3d(map_img), 
+            (128, 128))
+        
+        draw_minidisplay(display, img, False)
+
+
 
 class Game:
     
@@ -40,9 +51,9 @@ class Game:
         # init variables
         agent = Agent(self, self.starting_pos, 12, AGENT_COLLISION_TYPE)
         self.agent = agent
-        self.game_objects.append(agent)
-        view_pos_prev = calc_view_position(
-            agent.body.position, agent.body.angle, AGENT_VIEW_SIZE)
+        #self.game_objects.append(agent)
+        agent_pos_prev = agent.body.position
+        
         forward = False
         right = False
         left = False
@@ -52,6 +63,8 @@ class Game:
         
         # main loop
         while True:
+            # reset minidisplays
+            constants.MINIDISPLAY_LOCATION = 0
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return
@@ -65,8 +78,9 @@ class Game:
                     elif event.key == pygame.K_p:
                         paused = not paused
                     elif event.key == pygame.K_o:
-                        m = agent.brain.read_map()
-                        print(m.shape)
+                        draw_agent_map(self.display, self.agent)
+                        pygame.display.update()
+                        paused = True
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP:
                         forward = False
@@ -86,47 +100,50 @@ class Game:
                 self.display.fill(colors.BLACK)
                 [obj.draw() for obj in self.game_objects]
                 
-                # do all the AI stuff
+                # do all the AI stuff in this try block
                 try:
-                    subimage, original_img = get_subimage(
+                    subimage, static_img = get_subimage(
                         self.display, -agent.body.angle, 
                         AGENT_VIEW_SHAPE, (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
                     subimage = np.array(subimage, dtype=np.float32) / 255.0
-                    img = np.reshape(to_greyscale(subimage_to_inputs(original_img)), newshape=(16, 16, 1))
-                    x = np.reshape(to_greyscale(subimage_to_inputs(subimage)), newshape=(16, 16, 1))
+                    static_img = np.array(static_img, dtype=np.float32) / 255.0
+                    
+                    # convert to the 16x16x1 input shape
+                    x = subimage_to_inputs(subimage)
+                    static_img = subimage_to_inputs(static_img)
                     
                     # raw means the literal image patch that is used
                     # else means show the processed (shrunk) image
                     if RAW_MINIDISPLAY:
-                        draw_minidisplay(self.display, subimage, 0, 0)
+                        draw_minidisplay(
+                            self.display, subimage)
                     else:
                         draw_minidisplay(
-                            self.display, cv2.resize(outputs_to_image(x), (128, 128)), 0, 0)
+                            self.display, 
+                            cv2.resize(convert1dto3d(x), (128, 128)))
+                    
+                    map_input = self.agent.brain.map_input
+                    if map_input is not None:
+                        map_img = np.reshape(cv2.resize(map_input, (128, 128)), newshape=(128, 128, 1))
+                        #draw_minidisplay(self.display, convert1dto3d(map_img))
+                    
+                    #if agent.brain.decoder is not None:
+                        #draw_agent_map(self.display, self.agent)
                     
                     # pos delta is the change in position
-                    view_pos = calc_view_position(
-                        agent.body.position, agent.body.angle, AGENT_VIEW_SIZE)
-                    pos_delta = subtract_tuple(view_pos, view_pos_prev)
+                    pos_delta = subtract_tuple(agent_pos_prev, agent.body.position)
                     
                     # feed input data
-                    agent.brain.process_inputs(x, img, pos_delta)
-                    
+                    agent.brain.process_inputs(x, static_img, pos_delta)
                     
                     # create minidisplay for the nn model contents
-                    
-                    # with clustering
                     y = agent.brain.reconstruct_internal_model(x)
                     if y is not None:
-                        y = outputs_to_image(y)
-                        y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
-                        draw_minidisplay(self.display, y, 128, 0)
-                    
-                    # without clustering
-                    y = agent.brain.reconstruct_internal_model2(x)
-                    if y is not None:
-                        y = outputs_to_image(y)
-                        y = cv2.resize(y, dsize=(128, 128), interpolation=cv2.INTER_LINEAR)
-                        draw_minidisplay(self.display, y, 256, 0)
+                        y = convert1dto3d(y)
+                        y = cv2.resize(
+                            y, dsize=(128, 128), 
+                            interpolation=cv2.INTER_LINEAR)
+                        draw_minidisplay(self.display, y)
                     
                 except Exception as e:
                     print(e)
@@ -140,8 +157,8 @@ class Game:
                     agent.body.apply_impulse_at_local_point((AGENT_SPEED, 0), (0, 0))
                 
                 
-                
-                view_pos_prev = view_pos
+                self.agent.draw()
+                agent_pos_prev = agent.body.position
                 pygame.display.update()
                 self.clock.tick(FPS)
                 self.space.step(1.0 / FPS)
