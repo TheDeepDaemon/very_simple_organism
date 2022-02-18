@@ -1,4 +1,5 @@
 import os
+from tkinter import HORIZONTAL
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1" # turns off access to GPU
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from types import new_class
@@ -16,17 +17,18 @@ import cv2
 import matplotlib.pyplot as plt
 from create_gameobject import create_gameobject
 from constants import *
+import math
 
 
 def draw_agent_map(display, agent):
     map_img = agent.brain.read_map()
-    
     if map_img is not None:
         img = cv2.resize(
             convert1dto3d(map_img), 
             (128, 128))
-        
         draw_minidisplay(display, img, False)
+
+
 
 
 
@@ -110,13 +112,12 @@ class Game:
                     
                     # convert to the 16x16x1 input shape
                     x = subimage_to_inputs(subimage)
-                    static_img = subimage_to_inputs(static_img)
                     
-                    # raw means the literal image patch that is used
+                    
+                    # 'raw' means the literal image patch that is used
                     # else means show the processed (shrunk) image
                     if RAW_MINIDISPLAY:
-                        draw_minidisplay(
-                            self.display, subimage)
+                        draw_minidisplay(self.display, subimage)
                     else:
                         draw_minidisplay(
                             self.display, 
@@ -131,7 +132,7 @@ class Game:
                         #draw_agent_map(self.display, self.agent)
                     
                     # pos delta is the change in position
-                    pos_delta = subtract_tuple(agent_pos_prev, agent.body.position)
+                    pos_delta = subtract_tuple(agent.body.position, agent_pos_prev)
                     
                     # feed input data
                     agent.brain.process_inputs(x, static_img, pos_delta)
@@ -144,6 +145,7 @@ class Game:
                             y, dsize=(128, 128), 
                             interpolation=cv2.INTER_LINEAR)
                         draw_minidisplay(self.display, y)
+                    
                     
                 except Exception as e:
                     print(e)

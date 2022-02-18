@@ -11,9 +11,11 @@ from memory_buffer import MemoryBuffer
 import cppfunctions
 import data_handling
 from constants import *
-from display_util import add_tuple
+from display_util import add_tuple, to_greyscale
 from keras import Model, Sequential
 import math
+from calculate_map_edges import *
+import cv2
 
 
 
@@ -218,16 +220,19 @@ class AgentBrain:
     
     # encode something to the map
     def encode_to_map(self, view_img):
-        map_x, map_y = self.get_grid_location()
+        xmin, xmax, ymin, ymax = map_edges(self.position, view_img.shape, 64)
         
-        img = self.get_map_image(
-            self.position, view_img)
+        img = view_img[xmin:xmax, ymax:ymin, :]
+        
+        resized = cv2.resize(to_greyscale(img), (8, 8))
+        img = np.reshape(resized, newshape=(8, 8, 1))
         
         self.map_input = img
         img = np.array([img], dtype=np.float32)
+        
         latent_vector = self.encoder.predict(img)
         
-        if latent_vector is not None:
+        if latent_vector is not None and False:
             self.internal_map[map_x, map_y] = latent_vector[0, 0, 0]
             #x = np.array(latent_vector)
             #self.map_outputs = self.decoder.predict(x)[0]
@@ -245,10 +250,7 @@ class AgentBrain:
     # take inputs passed to the agent
     # this is the equivalent of perception
     def process_inputs(self, inputs, img, change_in_position):
-        delta_pos = \
-            convert_units(change_in_position[0]), \
-            convert_units(change_in_position[1])
-        self.position = add_tuple(self.position, delta_pos)
+        self.position = add_tuple(self.position, change_in_position)
         if self.weights_initted is False:
             self.learn_groups(inputs)
         else:
