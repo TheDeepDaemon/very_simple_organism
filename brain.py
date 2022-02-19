@@ -1,6 +1,8 @@
 from enum import auto
 import os
 
+from matplotlib.pyplot import grid
+
 from neural_network_util import set_layer_weights
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from operator import le
@@ -45,14 +47,15 @@ class AgentBrain:
         center = int(MAP_SIZE / 2)
         self.map_center = (center, center)
         self.map_input = None
+        self.map_latent = None
         self.map_outputs = None
         self.map_data = []
     
     
-    def init_internal_map(self):
+    def init_internal_map(self, latent_shape):
         self.internal_map = \
             np.zeros(
-                shape=(MAP_SIZE, MAP_SIZE, self.latent_classes), 
+                shape=(MAP_SIZE, MAP_SIZE, *latent_shape), 
                 dtype=bool)
     
     
@@ -158,16 +161,21 @@ class AgentBrain:
                 
                 # once the number of groups is known, do this
                 self.latent_classes = len(groups)
+                
                 print("latent classes: ", self.latent_classes)
-                self.init_internal_map()
+                
                 self.construct_autoencoder(self.latent_classes)
                 
+                latent_shape = self.encoder.output_shape[1:]
+                self.init_internal_map(latent_shape)
+                
+                # initialize the weights using the values from clustering
                 set_layer_weights(self.autoencoder, input_weights, 'conv_in')
                 set_layer_weights(self.autoencoder, output_weights, 'conv_out')
                 
                 x = np.reshape(x, newshape=(*x.shape, 1))
                 
-                #self.train_autoencoder(x, epochs=1, use_model_fit=True)
+                self.train_autoencoder(x, epochs=1, use_model_fit=True)
                 
                 return groups
     
@@ -194,27 +202,13 @@ class AgentBrain:
                 data, data, epochs=epochs, batch_size=batch_size)
     
     
-    def get_map_image(self, pos, view):
-        x, y = pos
-        vx = view.shape[0]
-        vy = view.shape[1]
-        
-        # position of
-        # grid cell in view = edge of grid cell - edge of view
-        grid_x = (CELL_SIZE * math.floor(x / CELL_SIZE))
-        view_x = x - (vx / 2)
-        x = int(grid_x - view_x)
-        
-        grid_y = (CELL_SIZE * math.floor(y / CELL_SIZE))
-        view_y = y - (vy / 2)
-        y = int(grid_y - view_y)
-        
-        return view[x:x+CELL_SIZE, y:y+CELL_SIZE]
-    
-    
     def get_grid_location(self):
-        map_x = int(self.position[0] / CELL_SIZE)
-        map_y = int(self.position[1] / CELL_SIZE)
+        grid_x = int(math.floor(self.position[0] / 64))
+        grid_y = int(math.floor(self.position[1] / 64))
+        
+        map_x = self.map_center[0] + grid_x
+        map_y = self.map_center[1] + grid_y
+        
         return map_x, map_y
     
     
@@ -231,12 +225,14 @@ class AgentBrain:
         img = np.array([img], dtype=np.float32)
         
         latent_vector = self.encoder.predict(img)
+        self.map_latent = latent_vector
+        print("latent vector shape: ", latent_vector.shape)
         
-        if latent_vector is not None and False:
-            self.internal_map[map_x, map_y] = latent_vector[0, 0, 0]
-            #x = np.array(latent_vector)
-            #self.map_outputs = self.decoder.predict(x)[0]
-        return latent_vector is not None
+        if latent_vector is not None:
+            map_x, map_y = self.get_grid_location()
+            self.internal_map[map_x, map_y] = latent_vector[0]
+            return True
+        return False
     
     
     def input_autoencoder(self, inputs):
@@ -269,7 +265,10 @@ class AgentBrain:
     
     
     def read_map(self):
-        return self.map_outputs
+        map_x, map_y = self.get_grid_location()
+        map_contents = self.internal_map[map_x, map_y]
+        map_contents = np.array([map_contents], dtype=np.float32)
+        return self.decoder.predict(map_contents)[0]
     
     
     def save_model(self):
@@ -283,3 +282,4 @@ class AgentBrain:
 if __name__ == "__main__":
     brain = AgentBrain()
     brain.construct_autoencoder(100)
+    print(brain.encoder.output_shape)

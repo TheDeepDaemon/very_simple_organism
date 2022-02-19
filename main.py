@@ -20,16 +20,46 @@ from constants import *
 import math
 
 
-def draw_agent_map(display, agent):
-    map_img = agent.brain.read_map()
-    if map_img is not None:
-        img = cv2.resize(
-            convert1dto3d(map_img), 
-            (128, 128))
-        draw_minidisplay(display, img, False)
+def draw_raw(display, subimage, x):
+    # 'raw' means the literal image patch that is used
+    # else means show the processed (shrunk) image
+    if RAW_MINIDISPLAY:
+        draw_minidisplay(display, subimage)
+    else:
+        draw_minidisplay(
+            display, 
+            cv2.resize(convert1dto3d(x), (128, 128)))
 
 
+def display_reconstructed(display, brain, x):
+    y = brain.reconstruct_internal_model(x)
+    if y is not None:
+        y = convert1dto3d(y)
+        y = cv2.resize(
+            y, dsize=(128, 128), 
+            interpolation=cv2.INTER_LINEAR)
+        draw_minidisplay(display, y)
 
+
+def display_map_input(display, brain):
+    map_input = brain.map_input
+    if map_input is not None:
+        map_img = np.reshape(cv2.resize(map_input, (128, 128)), newshape=(128, 128, 1))
+        draw_minidisplay(display, convert1dto3d(map_img))
+
+
+def draw_map_here(display, brain):
+    if brain.decoder is not None:
+        map_img = brain.read_map()
+        if map_img is not None:
+            img = cv2.resize(
+                convert1dto3d(map_img), 
+                (128, 128))
+            draw_minidisplay(display, img, False)
+
+
+def reconstruct_map(display, brain):
+    pass
 
 
 class Game:
@@ -80,8 +110,8 @@ class Game:
                     elif event.key == pygame.K_p:
                         paused = not paused
                     elif event.key == pygame.K_o:
-                        draw_agent_map(self.display, self.agent)
-                        pygame.display.update()
+                        #draw_agent_map(self.display, self.agent)
+                        #pygame.display.update()
                         paused = True
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP:
@@ -113,39 +143,23 @@ class Game:
                     # convert to the 16x16x1 input shape
                     x = subimage_to_inputs(subimage)
                     
+                    # draw raw inputs
+                    draw_raw(self.display, subimage, x)
                     
-                    # 'raw' means the literal image patch that is used
-                    # else means show the processed (shrunk) image
-                    if RAW_MINIDISPLAY:
-                        draw_minidisplay(self.display, subimage)
-                    else:
-                        draw_minidisplay(
-                            self.display, 
-                            cv2.resize(convert1dto3d(x), (128, 128)))
+                    # create minidisplay for the nn model contents
+                    display_reconstructed(display, self.agent.brain, x)
                     
-                    map_input = self.agent.brain.map_input
-                    if map_input is not None:
-                        map_img = np.reshape(cv2.resize(map_input, (128, 128)), newshape=(128, 128, 1))
-                        #draw_minidisplay(self.display, convert1dto3d(map_img))
+                    # display the input to the agent map
+                    display_map_input(self.display, self.agent.brain)
                     
-                    #if agent.brain.decoder is not None:
-                        #draw_agent_map(self.display, self.agent)
+                    # show what is decoded from the internal map at the current location
+                    draw_map_here(self.display, self.agent.brain)
                     
                     # pos delta is the change in position
-                    pos_delta = subtract_tuple(agent.body.position, agent_pos_prev)
+                    pos_delta = subtract_tuple(self.agent.body.position, agent_pos_prev)
                     
                     # feed input data
                     agent.brain.process_inputs(x, static_img, pos_delta)
-                    
-                    # create minidisplay for the nn model contents
-                    y = agent.brain.reconstruct_internal_model(x)
-                    if y is not None:
-                        y = convert1dto3d(y)
-                        y = cv2.resize(
-                            y, dsize=(128, 128), 
-                            interpolation=cv2.INTER_LINEAR)
-                        draw_minidisplay(self.display, y)
-                    
                     
                 except Exception as e:
                     print(e)

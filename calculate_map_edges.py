@@ -15,10 +15,10 @@ def cell_edges(agent_pos, cell_size):
     xmax = (math.floor(scaled_x) + 1)
     ymax = (math.floor(scaled_y) + 1)
     
-    xmin = (xmin * cell_size)
-    ymin = (ymin * cell_size)
-    xmax = (xmax * cell_size)
-    ymax = (ymax * cell_size)
+    xmin *= cell_size
+    ymin *= cell_size
+    xmax *= cell_size
+    ymax *= cell_size
     
     return xmin, xmax, ymin, ymax
 
