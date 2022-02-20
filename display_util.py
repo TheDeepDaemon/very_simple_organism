@@ -76,14 +76,17 @@ def rand_screen_pos(SCREEN_WIDTH, SCREEN_HEIGHT):
 
 
 def draw_minidisplay(display, pixels, draw_border=True):
+    if len(pixels.shape) == 3 and pixels.shape[2] == 1:
+        pixels = convert1dto3d(pixels)
     x = constants.MINIDISPLAY_LOCATION
     y = 0
     constants.MINIDISPLAY_LOCATION += pixels.shape[1]
     if draw_border:
-        pixels[:,0,:] = 0
-        pixels[0,:,:] = 0
-        pixels[:,-1,:] = 0
-        pixels[-1,:,:] = 0
+        border_color = np.array([0, 0, 1])
+        pixels[:,0] = border_color
+        pixels[0,:] = border_color
+        pixels[:,-1] = border_color
+        pixels[-1,:] = border_color
     draw_array(display, pixels * 255.0, (x, y))
 
 

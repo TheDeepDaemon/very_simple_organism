@@ -1,3 +1,4 @@
+from dis import dis
 import os
 from tkinter import HORIZONTAL
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1" # turns off access to GPU
@@ -20,7 +21,7 @@ from constants import *
 import math
 
 
-def draw_raw(display, subimage, x):
+def display_raw(display, subimage, x):
     # 'raw' means the literal image patch that is used
     # else means show the processed (shrunk) image
     if RAW_MINIDISPLAY:
@@ -45,21 +46,106 @@ def display_map_input(display, brain):
     map_input = brain.map_input
     if map_input is not None:
         map_img = np.reshape(cv2.resize(map_input, (128, 128)), newshape=(128, 128, 1))
-        draw_minidisplay(display, convert1dto3d(map_img))
+        draw_minidisplay(display, map_img)
 
 
-def draw_map_here(display, brain):
+def display_map_here(display, brain):
     if brain.decoder is not None:
         map_img = brain.read_map()
+        #map_img = brain.read_latent()
         if map_img is not None:
-            img = cv2.resize(
-                convert1dto3d(map_img), 
-                (128, 128))
-            draw_minidisplay(display, img, False)
+            img = cv2.resize(map_img, (128, 128))
+            img = np.reshape(img, newshape=(128, 128, 1))
+            draw_minidisplay(display, img)
 
 
 def reconstruct_map(display, brain):
-    pass
+    if (brain.decoder is not None) and (brain.internal_map is not None):
+        pos_x, pos_y = brain.get_grid_location()
+        grid_cells = 6
+        bmap = brain.internal_map[
+            pos_x-grid_cells:pos_x+grid_cells, 
+            pos_y-grid_cells:pos_y+grid_cells]
+        
+        images_list = []
+        
+        n1 = bmap.shape[0]
+        n2 = bmap.shape[1]
+        
+        for i in range(n1):
+            for j in range(n2):
+                images_list.append(bmap[i,j])
+        
+        images_list = np.array(images_list, dtype=np.float32)
+        
+        images_list = brain.decoder.predict(images_list)
+        
+        img_shape = images_list.shape[1:]
+        decoded_images = np.zeros(
+            shape=(n1, n2, *img_shape), 
+            dtype=np.float32)
+        
+        k = 0
+        for i in range(n1):
+            for j in range(n2):
+                decoded_images[i, j] = images_list[k]
+                k += 1
+        
+        single_img_shape = decoded_images.shape[2:]
+        width = decoded_images.shape[0] * single_img_shape[0]
+        height = decoded_images.shape[1] * single_img_shape[1]
+        the_rest = single_img_shape[2:]
+        image_shape = width, height, *the_rest
+        output_image = np.zeros(shape=image_shape, dtype=np.float32)
+        
+        n3 = single_img_shape[0]
+        n4 = single_img_shape[1]
+        
+        for i in range(n1):
+            for j in range(n2):
+                for k in range(n3):
+                    for l in range(n4):
+                        grid_x = (i * n3) + k
+                        grid_y = (j * n4) + l
+                        output_image[grid_x, grid_y] = decoded_images[i, n2 - j - 1, k, l]
+        
+        size = 128
+        img = cv2.resize(output_image, (size, size))
+        img = np.reshape(img, newshape=(size, size, 1))
+        
+        draw_minidisplay(display, img)
+
+
+def show_cell(display, brain):
+    x, y = brain.position
+    min_x = int(math.floor(x / 64)) * 64
+    min_y = int(math.floor(y / 64)) * 64
+    
+    # calculate position relative to the agent
+    relative_x = min_x - x
+    relative_y = min_y - y
+    
+    # get the position of the agent on the screen
+    center_x = SCREEN_WIDTH / 2
+    center_y = SCREEN_HEIGHT / 2
+    
+    # get the cell corner on the screen
+    min_x = center_x + relative_x
+    min_y = center_y + relative_y
+    
+    # get the opposite corner
+    max_x = min_x + 64
+    max_y = min_y + 64
+    
+    min_y = SCREEN_WIDTH - min_y
+    max_y = SCREEN_WIDTH - max_y
+    
+    edge_color = colors.CRIMSON
+    pygame.draw.line(display, edge_color, (min_x, min_y), (max_x, min_y))
+    pygame.draw.line(display, edge_color, (min_x, min_y), (min_x, max_y))
+    pygame.draw.line(display, edge_color, (max_x, min_y), (max_x, max_y))
+    pygame.draw.line(display, edge_color, (min_x, max_y), (max_x, max_y))
+
 
 
 class Game:
@@ -83,7 +169,6 @@ class Game:
         # init variables
         agent = Agent(self, self.starting_pos, 12, AGENT_COLLISION_TYPE)
         self.agent = agent
-        #self.game_objects.append(agent)
         agent_pos_prev = agent.body.position
         
         forward = False
@@ -110,8 +195,8 @@ class Game:
                     elif event.key == pygame.K_p:
                         paused = not paused
                     elif event.key == pygame.K_o:
-                        #draw_agent_map(self.display, self.agent)
-                        #pygame.display.update()
+                        reconstruct_map(self.display, self.agent.brain)
+                        pygame.display.update()
                         paused = True
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP:
@@ -144,7 +229,7 @@ class Game:
                     x = subimage_to_inputs(subimage)
                     
                     # draw raw inputs
-                    draw_raw(self.display, subimage, x)
+                    display_raw(self.display, subimage, x)
                     
                     # create minidisplay for the nn model contents
                     display_reconstructed(display, self.agent.brain, x)
@@ -153,7 +238,13 @@ class Game:
                     display_map_input(self.display, self.agent.brain)
                     
                     # show what is decoded from the internal map at the current location
-                    draw_map_here(self.display, self.agent.brain)
+                    #display_map_here(self.display, self.agent.brain)
+                    
+                    # show reconstructed whole map
+                    #reconstruct_map(self.display, self.agent.brain)
+                    
+                    # show which cell the agent is in
+                    show_cell(self.display, self.agent.brain)
                     
                     # pos delta is the change in position
                     pos_delta = subtract_tuple(self.agent.body.position, agent_pos_prev)

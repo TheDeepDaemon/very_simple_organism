@@ -56,7 +56,7 @@ class AgentBrain:
         self.internal_map = \
             np.zeros(
                 shape=(MAP_SIZE, MAP_SIZE, *latent_shape), 
-                dtype=bool)
+                dtype=np.float32)
     
     
     # this function defines the autoencoder
@@ -84,27 +84,27 @@ class AgentBrain:
         autoencoder.add(layer)
         encoder.add(layer)
         
-        '''
+        
         # latent dimension
         layer = layers.Conv2D(
             self.latent_classes, (2, 2), strides=(2, 2),
-            activation='sigmoid')
+            activation='relu')
         autoencoder.add(layer)
         encoder.add(layer)
-        '''
+        
         
         # decoder layers
         decoder_input = keras.layers.Input(shape=(1, 1, self.latent_classes))
         decoder.add(decoder_input)
         
-        '''
+        
         layer = layers.Conv2DTranspose(
             initial_filters, (2, 2),  strides=(2, 2),
             activation='relu',
             name='conv_transpose1')
         autoencoder.add(layer)
         decoder.add(layer)
-        '''
+        
         
         layer = layers.Conv2DTranspose(
             1, (4, 4), strides=(4, 4),
@@ -218,19 +218,24 @@ class AgentBrain:
         
         img = view_img[xmin:xmax, ymax:ymin, :]
         
-        resized = cv2.resize(to_greyscale(img), (8, 8))
+        greyscale = to_greyscale(img)
+        resized = cv2.resize(greyscale, (8, 8), interpolation=cv2.INTER_AREA)
         img = np.reshape(resized, newshape=(8, 8, 1))
-        
         self.map_input = img
+        
+        
         img = np.array([img], dtype=np.float32)
         
         latent_vector = self.encoder.predict(img)
         self.map_latent = latent_vector
-        print("latent vector shape: ", latent_vector.shape)
         
         if latent_vector is not None:
             map_x, map_y = self.get_grid_location()
+            
             self.internal_map[map_x, map_y] = latent_vector[0]
+            
+            self.map_outputs = self.decoder.predict(latent_vector)[0]
+            
             return True
         return False
     
@@ -251,7 +256,7 @@ class AgentBrain:
             self.learn_groups(inputs)
         else:
             self.encode_to_map(img)
-            self.input_autoencoder(inputs)
+            #self.input_autoencoder(inputs)
     
     
     def reconstruct_internal_model(self, inputs):
@@ -264,10 +269,17 @@ class AgentBrain:
             return self.encoder.predict(np.array([inputs]))[0]
     
     
+    def read_latent(self):
+        return self.map_outputs
+    
+    
     def read_map(self):
         map_x, map_y = self.get_grid_location()
         map_contents = self.internal_map[map_x, map_y]
-        map_contents = np.array([map_contents], dtype=np.float32)
+        
+        inp_shape = map_contents.shape
+        map_contents = np.reshape(
+            map_contents, newshape=(1, *inp_shape))
         return self.decoder.predict(map_contents)[0]
     
     
@@ -282,4 +294,4 @@ class AgentBrain:
 if __name__ == "__main__":
     brain = AgentBrain()
     brain.construct_autoencoder(100)
-    print(brain.encoder.output_shape)
+    print(brain.decoder.input_shape)
